@@ -1,0 +1,1 @@
+ShatteredVoid.exe -fullscreen
