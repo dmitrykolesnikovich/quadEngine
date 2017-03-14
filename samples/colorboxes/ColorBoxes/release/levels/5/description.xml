@@ -1,0 +1,8 @@
+﻿<?xml version="1.0" encoding="utf-16"?>
+<LevelObj xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Number>5</Number>
+  <name>плохое поведение</name>
+  <description>мигающие квадраты взрываются под тобой</description>
+  <levelColor>Yellow</levelColor>
+  <Orientation>Vertical</Orientation>
+</LevelObj>

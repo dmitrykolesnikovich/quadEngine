@@ -1,0 +1,15 @@
+program ForTheMotherland;
+
+uses
+  Forms,
+  Main in 'Main.pas' {GameWin},
+  BattleGameMode in 'BattleGameMode.pas';
+
+{$R *.res}
+
+begin
+  Application.Initialize;
+  Application.MainFormOnTaskbar := True;
+  Application.CreateForm(TGameWin, GameWin);
+  Application.Run;
+end.

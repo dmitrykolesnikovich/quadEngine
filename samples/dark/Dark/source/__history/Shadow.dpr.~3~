@@ -1,0 +1,17 @@
+program Shadow;
+
+uses
+  Forms,
+  Main in 'Main.pas' {GameWin},
+  CustomGameObject in 'CustomGameObject.pas',
+  Resources in 'Resources.pas',
+  GameMode in 'GameMode.pas';
+
+{$R *.res}
+
+begin
+  Application.Initialize;
+  Application.MainFormOnTaskbar := True;
+  Application.CreateForm(TGameWin, GameWin);
+  Application.Run;
+end.

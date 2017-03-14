@@ -1,0 +1,29 @@
+Quad Engine v0.5.2
+Monitors Count: 1
+Monitor #1: 16:9 1366x768
+QuadRender Initialization
+Resolution: 1024x600
+Driver: aticfx32.dll
+Description: ATI Mobility Radeon HD 4500/5100 Series
+Device: \\.\DISPLAY1
+Multisample: Off
+Fullscreen: Off
+Vsync: Off
+Vertex processing: Software
+Thread model: Multithreaded
+Max VB count: 60000
+Max Texture size: 8192x8192
+Max Texture stages: 8
+Max Anisotropy: 16
+Vertex shaders: 3.0
+Pixel shaders: 3.0
+Loading shader "shaders\life.bin"
+Loading shader "shaders\life_n_death.bin"
+Loading shader "shaders\highpass.bin"
+Loading shader "shaders\blur_h.bin"
+Loading shader "shaders\blur_v.bin"
+Loading shader "shaders\aberration.bin"
+Loading texture "textures\quadlogo.png"
+Loading texture "textures\brush.png"
+Loading texture "font\quad.png"
+Error: The method call is invalid.

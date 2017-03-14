@@ -1,0 +1,247 @@
+unit Effects;
+
+interface
+
+uses
+  QuadEngine, Vec2f, Resources, Classes;
+
+type
+  TCustomEffects = class
+  private
+    FQuad: IQuadRender;
+    FIsNeedToKill: Boolean;
+    FPosition: TVec2f;
+  public
+    constructor Create(APosition: TVec2f);
+    procedure Process(Delta: Double); virtual; abstract;
+    procedure Draw; virtual; abstract;
+    procedure SetQuad(AQuad: IQuadRender);
+  end;
+
+  TEffectNumDmg = class(TCustomEffects)
+  private
+    const SPEED_MOVE: TVec2f = (X: 0; Y: -20);
+    const SPEED_ALPHA = 300;
+  private
+    FAlpha: Single;
+    FText: AnsiString;
+  public
+    constructor Create(APosition: TVec2f; AText: AnsiString);
+    procedure Process(Delta: Double); override;
+    procedure Draw; override;
+  end;
+
+  TEffectBoom = class(TCustomEffects)
+  private
+    const SPEED_FRAME = 10;
+  private
+    FFrame: Single;
+    FAngle: Integer;
+  public
+    constructor Create(APosition: TVec2f);
+    procedure Process(Delta: Double); override;
+    procedure Draw; override;
+  end;
+
+  TEffectBoom1 = class(TCustomEffects)
+  private
+    const SPEED_FRAME = 10;
+  private
+    FFrame: Single;
+    FAngle: Integer;
+  public
+    constructor Create(APosition: TVec2f);
+    procedure Process(Delta: Double); override;
+    procedure Draw; override;
+  end;
+
+  TEffectsEngine = class
+  private
+    FQuad: IQuadRender;
+    FList: TList;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    procedure Process(Delta: Double);
+    procedure Draw;
+    procedure Add(AEffect: TCustomEffects);
+    procedure SetQuad(AQuad: IQuadRender);
+    function GetEffects: Boolean;
+  end;
+
+var
+  EffectsEngine: TEffectsEngine;
+
+implementation
+
+{ TCustomEffects }
+
+constructor TCustomEffects.Create(APosition: TVec2f);
+begin
+  FPosition := APosition;
+  FIsNeedToKill := False;
+end;
+
+procedure TCustomEffects.SetQuad(AQuad: IQuadRender);
+begin
+  FQuad := AQuad;
+end;
+
+{ TEffectsEngine }
+
+procedure TEffectsEngine.Add(AEffect: TCustomEffects);
+begin
+  if not Assigned(AEffect) then
+    Exit;
+
+  FList.Add(AEffect);
+  AEffect.SetQuad(FQuad);
+end;
+
+constructor TEffectsEngine.Create;
+begin
+  FList := TList.Create;
+end;
+
+destructor TEffectsEngine.Destroy;
+begin
+  FList.Free;
+  inherited;
+end;
+
+procedure TEffectsEngine.Draw;
+var
+  i: Integer;
+begin
+  for i := 0 to FList.Count - 1 do
+    TCustomEffects(FList.Items[i]).Draw;
+end;
+
+function TEffectsEngine.GetEffects: Boolean;
+var
+  i: Integer;
+  Effect: TCustomEffects;
+begin
+  Result := FList.Count > 0;
+ { i := 0;
+  while i < FList.Count do
+  begin
+    Effect := TCustomEffects(FList.Items[i]);
+    if Assigned(Effect) and not Effect.FIsNeedToKill then
+    begin
+      Result := True;
+      Inc(i);
+    end;
+  end;       }
+end;
+
+procedure TEffectsEngine.Process(Delta: Double);
+var
+  i: Integer;
+  Effect: TCustomEffects;
+begin
+  i := 0;
+  while i < FList.Count do
+  begin
+    Effect := TCustomEffects(FList.Items[i]);
+    if Assigned(Effect) and not Effect.FIsNeedToKill then
+    begin
+      Effect.Process(Delta);
+      Inc(i);
+    end
+    else
+      FList.Delete(i);
+  end;
+  
+  for i := 0 to FList.Count - 1 do
+    TCustomEffects(FList.Items[i]).Draw;
+end;
+
+procedure TEffectsEngine.SetQuad(AQuad: IQuadRender);
+begin
+  FQuad := AQuad;
+end;
+
+{ TEffectNumDmg }
+
+constructor TEffectNumDmg.Create(APosition: TVec2f; AText: AnsiString);
+begin
+  inherited Create(APosition);
+  FText := AText;
+  FAlpha := 500;
+end;
+
+function ToARGB(a, r, g, b: Byte): Cardinal;
+begin
+  Result := b + g shl 8 + r shl 16 + a shl 24;
+end;
+
+procedure TEffectNumDmg.Draw;
+var
+  Alpha: Single;
+begin
+  Alpha := FAlpha;
+  if Alpha > 255 then
+    Alpha := 255
+  else if Alpha < 0 then
+    Alpha := 0;
+  if FAlpha < 400 then
+    Fonts.Verdana12b.TextOutAligned(FPosition.X, FPosition.Y, 1, PAnsiChar(FText), ToARGB(Round(Alpha), 255, 50, 50), qfaCenter);
+end;
+
+procedure TEffectNumDmg.Process(Delta: Double);
+begin
+  FAlpha := FAlpha - SPEED_ALPHA * Delta;
+  if FAlpha < 400 then
+    FPosition := FPosition + SPEED_MOVE * Delta;
+  if FAlpha <= 0 then
+    FIsNeedToKill := True;
+end;
+
+{ TEffectBoom }
+
+constructor TEffectBoom.Create(APosition: TVec2f);
+begin
+  inherited Create(APosition);
+  FFrame := 0;
+  FAngle := Random(360);
+end;
+
+procedure TEffectBoom.Draw;
+begin
+  Textures.Flash.DrawRot(FPosition.X, FPosition.Y, FAngle, 1, $FFFFFFFF, Round(FFrame+0.5));
+end;
+
+procedure TEffectBoom.Process(Delta: Double);
+begin
+  FFrame := FFrame + SPEED_FRAME * Delta;
+  if FFrame > 16 then
+    FIsNeedToKill := True;
+end;
+
+{ TEffectBoom1 }
+
+constructor TEffectBoom1.Create(APosition: TVec2f);
+begin
+
+end;
+
+procedure TEffectBoom1.Draw;
+begin
+
+end;
+
+procedure TEffectBoom1.Process(Delta: Double);
+begin
+  FFrame := FFrame + SPEED_FRAME * Delta;
+  if FFrame > 20 then
+    FIsNeedToKill := True;
+end;
+
+initialization
+  EffectsEngine := TEffectsEngine.Create;
+
+finalization
+  EffectsEngine.Free;
+
+end.

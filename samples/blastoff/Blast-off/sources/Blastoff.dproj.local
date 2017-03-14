@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<BorlandProject>
+	<Transactions>
+    <Transaction>2012.01.26 23:49:31.466.pas,F:\Test quad\_Project\Unit1.pas=F:\Test quad\_Project\FlyStone.pas</Transaction>
+    <Transaction>2012.01.27 00:14:46.572.pas,F:\Test quad\_Project\Unit1.pas=F:\Test quad\_Project\BaseSprite.pas</Transaction>
+    <Transaction>2012.01.27 18:28:59.863.pas,F:\Test quad\_Project\Unit1.pas=F:\Test quad\_Project\Consts.pas</Transaction>
+    <Transaction>2012.01.27 18:40:45.720.pas,F:\Test quad\_Project\Unit1.pas=F:\Test quad\_Project\GlobalConst.pas</Transaction>
+    <Transaction>2012.01.27 20:06:49.664.pas,F:\Test quad\_Project\Unit1.pas=F:\Test quad\_Project\PlayerHero.pas</Transaction>
+    <Transaction>2012.01.28 01:05:51.342.pas,F:\Test quad\_Project\Unit1.pas=F:\Test quad\_Project\Bullets.pas</Transaction>
+    <Transaction>2012.01.28 21:08:59.985.pas,C:\Projects\igdc77\_Project\Unit1.pas=C:\Projects\igdc77\_Project\Resources.pas</Transaction>
+    <Transaction>2012.01.31 19:27:46.966.pas,C:\Projects\igdc77\_Project\Unit1.pas=C:\Projects\igdc77\_Project\Settings.pas</Transaction>
+    <Transaction>2012.01.31 19:33:45.429.pas,C:\Projects\igdc77\_Project\Settings.pas=C:\Projects\igdc77\_Project\iSettings.pas</Transaction>
+    <Transaction>2012.02.03 01:06:10.221.pas,C:\Projects\igdc77\_Project\Unit1.pas=C:\Projects\igdc77\_Project\Pyro.pas</Transaction>
+    <Transaction>2012.02.03 21:56:56.480.pas,C:\Projects\igdc77\_Project\Unit1.pas=C:\Projects\igdc77\_Project\GameModes.pas</Transaction>
+    <Transaction>2012.02.03 22:52:29.886.pas,C:\Projects\igdc77\_Project\Unit1.pas=C:\Projects\igdc77\_Project\iSpriteEngine.pas</Transaction>
+    <Transaction>2012.02.03 22:54:26.749.pas,C:\Projects\igdc77\_Project\iSpriteEngine.pas=</Transaction>
+    <Transaction>2012.02.05 19:30:13.582.dproj,C:\Projects\igdc77\_Project\Test_quad.dproj=C:\Projects\igdc77\_Project\Blastoff.dproj</Transaction>
+  </Transactions>
+</BorlandProject>

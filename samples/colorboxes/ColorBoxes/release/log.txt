@@ -1,0 +1,26 @@
+Quad Engine v0.5.2
+Monitors Count: 1
+Monitor #1: 16:9 1920x1080 (FullHD)
+QuadRender Initialization
+Resolution: 1280x720
+Driver: nvumdshim.dll
+Description: Intel(R) HD Graphics Family
+Device: \\.\DISPLAY1
+Multisample: Off
+Fullscreen: Off
+Vsync: Off
+Vertex processing: Software
+Thread model: Multithreaded
+Max VB count: 60000
+Max Texture size: 8192x8192
+Max Texture stages: 8
+Max Anisotropy: 16
+Vertex shaders: 3.0
+Pixel shaders: 3.0
+Loading texture "textures\box_transparent_2.png"
+Loading texture "textures\box_transparent_2.png"
+Loading texture "textures\center.png"
+Loading texture "textures\box_my2.png"
+Loading texture "fonts\title_font.png"
+Error: The method call is invalid.
+Loading texture "fonts\text_font.png"

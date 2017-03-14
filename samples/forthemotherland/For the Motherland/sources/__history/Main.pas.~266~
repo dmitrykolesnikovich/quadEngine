@@ -1,0 +1,210 @@
+unit Main;
+
+interface
+
+uses
+  Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms, Effects,
+  Dialogs, QuadEngine, mSettings, CustomGameMode, BattleGameMode, Resources, Cursor,
+  MainMenu, MainMenuMode, bass;
+
+type
+  TGameWin = class(TForm)
+    procedure FormCreate(Sender: TObject);
+    procedure FormDestroy(Sender: TObject);
+    procedure FormMouseDown(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
+    procedure FormMouseMove(Sender: TObject; Shift: TShiftState; X, Y: Integer);
+    procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+    procedure FormKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
+  private
+    FQuadRender: IQuadRender;
+  //  FQuadDevice: IQuadDevice;
+    FQuadTimer: IQuadTimer;
+    FEngine: TCustomGameMode;
+    FGameEngine: TBattleGameMode;
+    FMainMenuEngine: TMainMenuMode;
+    FMouseX, FMouseY: Integer;
+  public
+    procedure NewGame;
+    procedure ResumeGame;
+
+    procedure Process(const delta: Double);
+    procedure Draw;
+
+    procedure Exit;
+  end;
+
+var
+  GameWin: TGameWin;
+
+implementation
+
+{$R *.dfm}
+
+procedure OnTimer(out delta: Double); //stdcall;
+begin
+  Shaders.Water_Time := Shaders.Water_Time + delta / 100;
+  if Shaders.Water_Time > 1.0 then
+    Shaders.Water_Time := Shaders.Water_Time - 1.0;
+
+  GameWin.Process(delta);
+  GameWin.Draw;
+end;
+
+{ TGameWin }
+
+procedure TGameWin.Process(const delta: Double);
+var
+ iFinal: Integer;
+begin
+  if (FEngine is TBattleGameMode) then
+  begin
+    iFinal := TBattleGameMode(FEngine).GetFinal;
+    if iFinal <> 0 then
+    begin
+      FMainMenuEngine.SetFon(iFinal);
+      FMainMenuEngine.MMResumeGame.Enabled := False;
+      FEngine := FMainMenuEngine;
+
+      BASS_StreamFree(Audio.Music);
+      Audio.Music := BASS_StreamCreateFile(False, PAnsiChar(AnsiString(Audio.PATH + 'menu.mp3')), 0, 0, 0);
+      BASS_StreamPlay(Audio.Music, False, BASS_SAMPLE_LOOP);
+    end;
+  end;
+
+  FEngine.Process(delta);
+end;
+
+procedure TGameWin.Exit;
+begin
+  Audio.Finalize;
+  FQuadTimer := nil;
+  FQuadRender := nil;
+  Close;
+end;
+
+procedure TGameWin.FormCreate(Sender: TObject);
+begin
+  Randomize;
+  Cursor := crNone;
+  ClientWidth := Settings.WindowWidth;
+  ClientHeight := Settings.WindowHeight;
+
+ // FQuadDevice := CreateQuadDevice;
+
+  FQuadRender := CreateQR;
+ // FQuadDevice.CreateRender(FQuadRender);
+  FQuadRender.Initialize(Handle, ClientWidth, ClientHeight, False);
+ // FQuadDevice.CreateTimer(FQuadTimer);
+  FQuadTimer := FQuadRender.CreateTimer;
+
+  FQuadTimer.SetInterval(16);
+  FQuadTimer.SetCallBack(@OnTimer);
+
+  Fonts.LoadFonts(FQuadRender);
+  Textures.LoadTextures(FQuadRender);
+  Shaders.LoadShaders(FQuadRender);
+  Audio.Initialize(Handle);
+  EffectsEngine.SetQuad(FQuadRender);
+
+  Cursors := TCursors.Create(FQuadRender);
+  FMainMenuEngine := TMainMenuMode.Create(FQuadRender);
+  FMainMenuEngine.MMExitGame.OnEnter := Exit;
+ // FMainMenuEngine.MMStartGame.OnEnter := NewGame;
+  FMainMenuEngine.MMResumeGame.OnEnter := ResumeGame;
+
+  FGameEngine := TBattleGameMode.Create(FQuadRender);
+
+  FEngine := TCustomGameMode(FMainMenuEngine);
+  FQuadTimer.SetState(True);
+end;
+
+procedure TGameWin.FormDestroy(Sender: TObject);
+begin
+  Cursors.Free;
+  FMainMenuEngine.Free;
+  FGameEngine.Free;
+  Audio.Finalize;
+ // Fonts.Free;
+  FQuadTimer := nil;
+  FQuadRender := nil;
+ // FQuadDevice := nil;
+end;
+
+procedure TGameWin.FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+begin
+  if (FEngine is TBattleGameMode) and (Key = 27) then
+  begin
+    FMainMenuEngine.MMResumeGame.Enabled := True;
+    FEngine := FMainMenuEngine;
+
+    BASS_StreamFree(Audio.Music);
+    Audio.Music := BASS_StreamCreateFile(False, PAnsiChar(AnsiString(Audio.PATH + 'menu.mp3')), 0, 0, 0);
+    BASS_StreamPlay(Audio.Music, False, BASS_SAMPLE_LOOP);
+
+   // if BASS_ChannelBytes2Seconds(Audio.MusicGame, BASS_ChannelGetPosition(Audio.MusicGame)) > 40  then
+   // begin
+   {   BASS_StreamFree(Audio.MusicGame);
+      Audio.MusicMenu := BASS_StreamCreateFile(False, PAnsiChar(AnsiString(Audio.PATH + 'menu.mp3')), 0, 0, 0);
+      BASS_StreamPlay(Audio.MusicMenu, False, BASS_SAMPLE_LOOP); }
+   // end;
+  end
+  else
+    FEngine.OnKeyDown(Key, Shift);
+end;
+
+procedure TGameWin.FormKeyUp(Sender: TObject; var Key: Word; Shift: TShiftState);
+begin
+  FEngine.OnKeyUp(Key, Shift);
+end;
+
+procedure TGameWin.FormMouseDown(Sender: TObject; Button: TMouseButton;
+  Shift: TShiftState; X, Y: Integer);
+begin
+  //Caption := IntToStr((X+32) div 32)+'x'+IntToStr((Y+32) div 32);
+  FEngine.OnMouseDown(Button, Shift, X, Y);
+end;
+
+procedure TGameWin.FormMouseMove(Sender: TObject; Shift: TShiftState; X,
+  Y: Integer);
+begin
+  FMouseX := X;
+  FMouseY := Y;
+  FEngine.OnMouseMove(Shift, X, Y);
+end;
+
+procedure TGameWin.NewGame;
+begin
+  FGameEngine.LoadLevel('lvl1.map');
+  FEngine := FGameEngine;
+
+  BASS_StreamFree(Audio.Music);
+  Audio.Music := BASS_StreamCreateFile(False, PAnsiChar(AnsiString(Audio.PATH + 'game.mp3')), 0, 0, 0);
+  BASS_StreamPlay(Audio.Music, False, BASS_SAMPLE_LOOP);
+end;
+
+procedure TGameWin.ResumeGame;
+begin
+  FEngine := FGameEngine;
+  BASS_StreamFree(Audio.Music);
+  Audio.Music := BASS_StreamCreateFile(False, PAnsiChar(AnsiString(Audio.PATH + 'game.mp3')), 0, 0, 0);
+  BASS_StreamPlay(Audio.Music, False, BASS_SAMPLE_LOOP);
+end;
+
+procedure TGameWin.Draw;
+begin
+  FQuadRender.BeginRender;
+  Cursors.Tip := 0;
+  FQuadRender.SetBlendMode(qbmSrcAlpha);
+  FQuadRender.Rectangle(0, 0, ClientWidth, ClientHeight, $FF000000);
+
+  FEngine.Draw;
+  Caption := 'For the Motherland.  FPS: ' + IntToStr(Round(FQuadTimer.GetFPS));
+
+  Cursors.Draw(FMouseX, FMouseY);
+
+
+  FQuadRender.EndRender;
+end;
+
+end.

@@ -1,0 +1,8 @@
+﻿<?xml version="1.0" encoding="utf-16"?>
+<LevelObj xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Number>12</Number>
+  <name>победа!</name>
+  <description>вполне заслуженная</description>
+  <levelColor>Blue</levelColor>
+  <Orientation>Horizontal</Orientation>
+</LevelObj>

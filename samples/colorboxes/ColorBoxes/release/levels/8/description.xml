@@ -1,0 +1,8 @@
+﻿<?xml version="1.0" encoding="utf-16"?>
+<LevelObj xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Number>8</Number>
+  <name>пробирка</name>
+  <description>причем здесь эти квадраты?</description>
+  <levelColor>Red</levelColor>
+  <Orientation>Horizontal</Orientation>
+</LevelObj>

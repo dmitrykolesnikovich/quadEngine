@@ -1,0 +1,142 @@
+unit Hero;
+
+interface
+
+uses
+  QuadEngine, Classes, Controls, CustomGameObject, Resources, Direct3D9, Vec2f, mSettings;
+
+type
+  THero = class(TCustomGameObject)
+  private
+    FScale: Single;
+    FHealth: Single;
+    function GetRadius: Single;
+  public
+    constructor Create(AQuadRender: IQuadRender);
+    destructor Destroy; override;
+    procedure VectorZero;
+    procedure Process(const dt: Double); override;
+    procedure Draw(const dt: Double); override;
+    procedure DrawMap(const dt: Double);
+
+    procedure Move(AVector: TVec2f);
+
+    property Radius: Single read GetRadius;
+
+    procedure DrawCircle;
+    procedure Refresh;
+    property Scale: Single read FScale write FScale;
+  end;
+
+implementation
+
+{ THero }
+
+constructor THero.Create(AQuadRender: IQuadRender);
+begin
+  inherited Create(AQuadRender);
+  Refresh;
+  FScale := 1.0;
+  FPosition := TVec2f.Create(850, 400);
+  FHealth := 100;
+end;
+
+procedure THero.Refresh;
+begin
+
+end;
+
+destructor THero.Destroy;
+begin
+
+  inherited;
+end;
+
+procedure THero.DrawCircle;
+var
+  i: Integer;
+  Q: Integer;
+begin
+  Q := 16;
+  for i := 0 to Q - 1 do
+    FQuad.DrawLine((FPosition.X - Settings.GameCamera.X) * Settings.GameScale + cos(Pi*2/Q*i) * Radius, (FPosition.Y - Settings.GameCamera.Y) * Settings.GameScale + sin(Pi*2/Q*i) * Radius,
+                   (FPosition.X - Settings.GameCamera.X) * Settings.GameScale + cos(Pi*2/Q*(i+1)) * Radius, (FPosition.Y - Settings.GameCamera.Y) * Settings.GameScale + sin(Pi*2/Q*(i+1)) * Radius, $FFFF0000);
+end;
+
+procedure THero.Draw(const dt: Double);
+var
+  DrawPos: TVec2f;
+  DrawScale: Single;
+begin
+  DrawPos := TVec2f.Create(Position.X * Settings.GameScale, Position.Y * Settings.GameScale);
+  DrawPos := TVec2f.Create(Position.X * Settings.GameScale - Settings.Camera.X, Position.Y * Settings.GameScale - Settings.Camera.Y);
+  DrawScale := FScale * Settings.GameScale;
+  FQuad.SetBlendMode(qbmSrcAlpha);
+  FQuad.SetTextureAdressing(D3DTADDRESS_WRAP);
+  Shaders.HeroShader.SetShaderState(True);
+  Textures.Hero.DrawRot(DrawPos.X, DrawPos.Y-8, 0, DrawScale, $FFFFFFFF);
+  //DrawMap(DrawPos.X - DrawScale, DrawPos.Y - DrawScale, DrawPos.X + DrawScale, DrawPos.Y + DrawScale, 0, 0, 1, 1);
+  Shaders.HeroShader.SetShaderState(False);
+  FQuad.SetTextureAdressing(D3DTADDRESS_CLAMP);
+  Textures.HeroEye.DrawRot(DrawPos.X, DrawPos.Y, 0, DrawScale);
+  FQuad.SetBlendMode(qbmNone);
+end;
+
+procedure THero.DrawMap(const dt: Double);
+var
+  DrawPos: TVec2f;
+  DrawScale: Single;
+begin      {
+  DrawPos := TVec2f.Create((Position.X * Settings.GameScale) - Settings.Camera.X, (Position.Y * Settings.GameScale) - Settings.Camera.Y);
+  DrawScale := FScale * Settings.GameScale / 2 * 0.65;
+  FQuad.SetBlendMode(qbmSrcAlphaMul);
+  FQuad.SetTextureAdressing(D3DTADDRESS_WRAP);
+  Shaders.HeroShader.SetShaderState(True);
+  Textures.Hero.DrawRot(DrawPos.X/2, DrawPos.Y/2, 0, DrawScale);
+  Shaders.HeroShader.SetShaderState(False);
+  FQuad.SetTextureAdressing(D3DTADDRESS_CLAMP);}
+
+  DrawPos := Position / 3;
+  DrawScale := FScale / 2 * 0.65 / 3;
+  FQuad.SetBlendMode(qbmSrcAlphaMul);
+  FQuad.SetTextureAdressing(D3DTADDRESS_WRAP);
+  Shaders.HeroShader.SetShaderState(True);
+  Textures.Hero.DrawRot(DrawPos.X/2, DrawPos.Y/2, 0, DrawScale, $33FFFFFF);
+  Shaders.HeroShader.SetShaderState(False);
+  FQuad.SetTextureAdressing(D3DTADDRESS_CLAMP);
+
+  FQuad.SetBlendMode(qbmNone);
+end;
+
+function THero.GetRadius: Single;
+begin
+  Result := 48 * FScale * Settings.GameScale;
+end;
+
+procedure THero.Move(AVector: TVec2f);
+begin
+  FPosition := FPosition + AVector;
+  //FPosition := FPosition;
+end;
+
+procedure THero.Process(const dt: Double);
+begin
+  inherited;
+  FPosition := FPosition + FVector * dt;
+
+  if FVector = TVec2f.Create(0, 0) then
+    Shaders.HeroShaderVector := Shaders.HeroShaderVector - TVec2f.Create(0, dt * 0.1)
+  else
+    Shaders.HeroShaderVector := Shaders.HeroShaderVector {- TVec2f.Create(0, dt * 0.1)} + FVector / 15000;
+
+  //Shaders.HeroShaderVector := Shaders.HeroShaderVector + FVector;
+
+end;
+
+
+procedure THero.VectorZero;
+begin
+  FVector := TVec2f.Create(0, 0);
+end;
+
+end.

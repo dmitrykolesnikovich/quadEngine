@@ -1,0 +1,573 @@
+unit BattleGameMode;
+
+// xneg@mail.ru
+
+interface
+
+uses
+  QuadEngine, Classes, Controls, CustomGameMode, Map, Graphics, Dialogs, SysUtils, CustomUnit, Vec2f, Resources,
+  mSettings, Windows, Cursor, Collision, Math, Effects, AI, UnitsConfig;
+type
+  TBattleGameMode = class(TCustomGameMode)
+  private
+    FMap: TMap;
+    FUnitList: TList;
+    FUnitListDel: Boolean;
+    FMouseX, FMouseY, FMouseXp, FMouseYp: Integer;
+    FListGoPoints: TList;
+    FScale: single;
+    FScaleTime: single;
+    FAI: TAIEngine;
+    FNext: Boolean;
+    function GetUnitsList(Index: Integer): TCustomUnit;
+    procedure RefreshUnitList;
+  public
+    procedure OnCreate; override;
+    procedure LoadLevel(AFileName: AnsiString);
+    procedure OnDestroy; override;
+    procedure OnKeyDown(Key: Word; Shift: TShiftState); override;
+    procedure OnKeyUp(Key: Word; Shift: TShiftState); override;
+    procedure OnMouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
+    procedure OnMouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); override;
+    procedure OnMouseMove(Shift: TShiftState; X, Y: Integer); override;
+    procedure Process(const Delta: Double); override;
+    procedure Draw; override;
+    procedure DrawPanel;
+    procedure DrawArrows;
+    procedure NextUnit;
+    function GetFinal: Integer;
+
+    property UnitsList[Index: Integer]: TCustomUnit read GetUnitsList;
+    procedure ListUnitSort;
+  end;
+
+implementation
+
+{ TBattleGameMode }
+
+
+function TBattleGameMode.GetFinal: Integer;
+begin
+  if FMap.GetCountUnits(0) = 0 then
+
+  else if FMap.GetCountUnits(1) = 0 then
+
+  else
+    Result := 0;
+end;
+
+procedure TBattleGameMode.ListUnitSort;
+var
+  X, Y, R: Integer;
+  P: Pointer;
+  List: TList;
+begin
+  List := TList.Create;
+  //FUnitList.Clear;
+  FMap.UnitsToList(List);
+
+  for X := 0 to List.Count - 1 do
+  begin
+    R := Random(List.Count);
+    if R <> X then
+    begin
+      P := List.Items[X];
+      List.Items[X] := List.Items[R];
+      List.Items[R] := P;
+    end;
+  end;
+
+  for X := 0 to List.Count - 1 do
+    FUnitList.Add(List.Items[X]);
+  FUnitList.Add(nil);
+
+  List.Free;
+end;
+
+procedure TBattleGameMode.RefreshUnitList;
+var
+  i: Integer;
+begin
+  i := 0;
+  while i < FUnitList.Count - 1 do
+  begin
+    if Assigned(UnitsList[i]) and (UnitsList[i].HP <= 0) then
+    begin
+      FUnitList.Delete(i);
+    end
+    else
+      Inc(i);
+  end;
+
+  while FUnitList.Count < 20 do
+    ListUnitSort;
+end;
+
+procedure TBattleGameMode.NextUnit;
+begin
+    RefreshUnitList;
+
+    if FUnitListDel then
+      FUnitList.Delete(0);
+
+    while not Assigned(FUnitList.Items[0]) do
+    begin
+      FMap.Refresh;
+      FUnitList.Delete(0);
+      while FUnitList.Count < 20 do
+        ListUnitSort;
+    end;
+
+    if UnitsList[0].HP > 0 then
+      FMap.PathConstruct(UnitsList[0].MapX, UnitsList[0].MapY)
+    else begin
+      NextUnit;
+      Exit;
+    end;
+    FUnitListDel := True;
+
+    FNext := True;
+end;
+
+procedure TBattleGameMode.OnCreate;
+begin
+ // LoadLevel('lvl1.map');
+  FNext := False;
+end;
+
+procedure TBattleGameMode.LoadLevel(AFileName: AnsiString);
+begin
+  FUnitListDel := False;
+  FScale := 0;
+  FScaleTime := 0;
+  FListGoPoints := TList.Create;
+  FMap := TMap.Create(FQuad, AFileName);
+  FMap.SetListGoPoints(FListGoPoints);
+  FAI := TAIEngine.Create(FMap);
+  FUnitList := TList.Create;
+  ListUnitSort;
+  NextUnit;
+end;
+
+procedure TBattleGameMode.OnDestroy;
+begin
+  FAI.Free;
+  FUnitList.Free;
+  FListGoPoints.Free;
+  FMap.Free;
+end;
+
+procedure TBattleGameMode.OnKeyDown(Key: Word; Shift: TShiftState);
+begin
+  if (Key = 27) and Assigned(FMap.Focus) and (FMap.Focus.Units.Player = 0) then
+  begin
+    FMap.Focus := nil;
+    FMap.Clear;
+    NextUnit;
+  end;
+end;
+
+procedure TBattleGameMode.OnKeyUp(Key: Word; Shift: TShiftState);
+begin
+end;
+
+procedure TBattleGameMode.OnMouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+var
+  Item, mItem: PMapItem;
+  temp: TVec2f;
+  i: Integer;
+begin
+  if EffectsEngine.GetEffects then
+    Exit;
+
+  if coll.PointRect(FMouseXp, FMouseYp, coll.ToRect(1024-64, 768-32, 32, 32)) then
+  begin
+    FMap.Focus := nil;
+    FMap.Clear;
+    NextUnit;
+  end;
+
+  if coll.PointRect(FMouseXp, FMouseYp, coll.ToRect(1024-32, 768-32, 32, 32)) then
+  begin
+    i := 0;
+    while Assigned(FUnitList.Items[i]) do
+    begin
+      inc(i);
+    end;
+    FUnitList.Move(FUnitList.Add(FMap.Focus.Units), i);
+    FMap.Focus := nil;
+    FMap.Clear;
+    NextUnit;
+  end;
+
+
+  if FAI.OnMouseDown(Button, Shift, FMouseX, FMouseY) then
+  begin
+    FMap.Focus := nil;
+    FMap.Clear;
+    NextUnit;
+    FMap.RefreshVisible;
+  end;
+end;
+
+procedure TBattleGameMode.OnMouseMove(Shift: TShiftState; X, Y: Integer);
+begin
+  FMouseXp := X;
+  FMouseYp := Y;
+  FMap.SetMouse(X, Y);
+  FMouseX := (X+32) div 32;
+  FMouseY := (Y+32) div 32;
+end;
+
+procedure TBattleGameMode.OnMouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+begin
+//
+end;
+
+procedure TBattleGameMode.Process(const Delta: Double);
+  function UnitGoTo(AItem: PMapItem): PMapItem;
+  var
+    v: TVec2f;
+    Speed: Single;
+  begin
+    Result := AItem;
+    v.X := (AItem^.Position.X - FMap.Focus^.Position.X);
+    v.Y := (AItem^.Position.Y - FMap.Focus^.Position.Y);
+    if not FMap.Focus^.Visible[0] and not AItem.Visible[0] then
+      v := v * 32
+    else
+      v := v * FMap.Focus^.Units.Config.Speed * Delta * Settings.UnitSpeed;
+
+    FMap.Focus^.Units.X := FMap.Focus^.Units.X + v.X;
+    FMap.Focus^.Units.Y := FMap.Focus^.Units.Y + v.Y;
+  end;
+var
+  dis: Single;
+  Item, pItem: PMapItem;
+  X, Y: Integer;
+begin
+  if FNext and not EffectsEngine.GetEffects then
+  begin
+    FNext := False;
+    if Assigned(FMap.Focus) and (FMap.Focus.Units.Player = 1) and FAI.AI then
+    begin
+      FListGoPoints.Clear;
+      FMap.Focus := nil;
+      FMap.Clear;
+      NextUnit;
+    end;
+  end;
+
+  EffectsEngine.Process(delta);
+  FMap.Process(Delta);
+
+  FScaleTime := FScaleTime + delta;
+  if FScaleTime > 1.5 then
+    FScaleTime := FScaleTime - 1.5;
+  FScale := FScaleTime*FScaleTime*(3-2*FScaleTime)/2;
+
+  for X := 0 to FMap.W-3 do
+    for Y := 0 to FMap.H-3 do
+      if Assigned(FMap.List[X, Y].Units) then
+        FMap.List[X, Y].Units.Process(Delta);
+
+  if FListGoPoints.Count > 0 then
+  begin
+
+    Item := UnitGoTo(PMapItem(FListGoPoints.Items[FListGoPoints.Count - 1]));
+    if (Abs(FMap.Focus^.Units.X) >= 32) or (Abs(FMap.Focus^.Units.Y) >= 32) then
+    begin
+      FMap.Focus^.Units.X := 0.0;
+      FMap.Focus^.Units.Y := 0.0;
+
+      Item^.Units := FMap.Focus.Units;
+      Item^.Units.MapX := Round(Item^.Position.X);
+      Item^.Units.MapY := Round(Item^.Position.Y);
+      FMap.Focus.Units := nil;
+      FListGoPoints.Delete(FListGoPoints.Count - 1);
+      if (FListGoPoints.Count > 0) then
+      begin
+        pItem := PMapItem(FListGoPoints.Items[FListGoPoints.Count - 1]);
+        if (Assigned(pItem.Units) and (pItem.Units.HP <= 0)) or not Assigned(pItem.Units) then
+        begin
+          FMap.Focus := Item;
+          Item := PMapItem(FListGoPoints.Items[FListGoPoints.Count - 1]);
+          UnitGoTo(Item);
+          FMap.RefreshVisible;
+        end
+        else
+        begin
+          FListGoPoints.Clear;
+          FMap.Focus := nil;
+          FMap.Clear;
+          NextUnit;
+          FMap.RefreshVisible;
+        end;
+      end
+      else
+      begin
+        FListGoPoints.Clear;
+        FMap.Focus := nil;
+        FMap.Clear;
+        NextUnit;
+        FMap.RefreshVisible;
+      end;
+    end;
+  end;
+end;
+
+procedure TBattleGameMode.Draw;
+var
+  X, Y: Integer;
+  mItem, CollMap: PMapItem;
+  Color: Cardinal;
+  temp: TVec2f;
+  i: Integer;
+  Q: Integer;
+begin
+  mItem := FMap.List[FMouseX, FMouseY];
+  FMap.Draw;
+
+  for Y := 1 to FMap.H-2 do
+    for X := 1 to FMap.W-2 do
+      if Assigned(FMap.List[X, Y].Units) and FMap.List[X, Y].Visible[0] then
+        FMap.List[X, Y].Units.Draw(X * 32 - 16, Y * 32 - 16)
+      else
+      if (FListGoPoints.Count = 0) and not EffectsEngine.GetEffects and Assigned(FMap.Focus) and (FMap.Focus.Units.Player = 0)
+        and (FMap.List[X, Y].Distance <= FMap.Focus.Units.Config.Distance) then
+        Textures.Focus.Draw(x * 32 - 32, y * 32 - 32, $88FFFFFF, 2);
+
+  if Assigned(FMap.Focus) and not EffectsEngine.GetEffects and (FMap.Focus.Units.Player = 0) and (FListGoPoints.Count = 0) then
+    Textures.Focus.Draw(FMap.Focus.Position.X*32-32, FMap.Focus.Position.Y*32-32, $FFFF0000, 0);
+
+  temp := (FMap.Focus^.Position*32 - mItem^.Position*32);
+
+  FQuad.SetBlendMode(qbmNone);
+  FQuad.RenderToTexture(True, Textures.Fog);
+  FQuad.Rectangle(0, 0, 1024, 768, $FF333333);
+  for Y := 1 to FMap.H - 2 do
+    for X := 1 to FMap.W - 2 do
+      if FMap.List[X, Y].Visible[0] then
+        FQuad.Rectangle(X * 32 - 32, Y * 32 - 32, X * 32, Y * 32, $FFFFFFFF);
+  FQuad.RenderToTexture(False, Textures.Fog);
+
+
+  FQuad.SetBlendMode(qbmMul);
+  Textures.Fog.DrawMap(0, 0, 1024, 768, 0, 0, 1, 1, $FFFFFFFF);
+  //Textures.Fog.Draw(0, 0, $FFFFFFFF);
+  FQuad.SetBlendMode(qbmSrcAlpha);
+
+  if not EffectsEngine.GetEffects then
+  begin
+    if Assigned(FMap.Focus) and (temp.Length < FMap.Focus.Units.Config.Arack) and Assigned(mItem.Units)
+      and(mItem.Visible[0]) and (mItem.Units.Player <> FMap.Focus.Units.Player)
+      and (mItem.Units.HP > 0) and (not FMap.VisibleMap(FMap.Focus, mItem, MAP_HOME)
+      or (FMap.Focus.Units.Config.UnitType = UNIT_ARTILLERY) or (FMap.Focus.Units.Config.UnitType = UNIT_REACT_ART)) then
+    begin
+      Cursors.Tip := 1;
+      if (FMap.Focus.Units.Config.UnitType = UNIT_ARTILLERY) or (FMap.Focus.Units.Config.UnitType = UNIT_REACT_ART) then
+      begin
+        Textures.Cursor.Draw(FMap.List[FMouseX-1, FMouseY].Position.X*32-48, FMap.List[FMouseX-1, FMouseY].Position.Y*32-48, $88FFFFFF, 1);
+        Textures.Cursor.Draw(FMap.List[FMouseX, FMouseY-1].Position.X*32-48, FMap.List[FMouseX, FMouseY-1].Position.Y*32-48, $88FFFFFF, 1);
+        Textures.Cursor.Draw(FMap.List[FMouseX+1, FMouseY].Position.X*32-48, FMap.List[FMouseX+1, FMouseY].Position.Y*32-48, $88FFFFFF, 1);
+        Textures.Cursor.Draw(FMap.List[FMouseX, FMouseY+1].Position.X*32-48, FMap.List[FMouseX, FMouseY+1].Position.Y*32-48, $88FFFFFF, 1);
+      end;
+      if FMap.Focus.Units.Config.UnitType = UNIT_REACT_ART then
+      begin
+        Textures.Cursor.Draw(FMap.List[FMouseX-1, FMouseY-1].Position.X*32-48, FMap.List[FMouseX-1, FMouseY-1].Position.Y*32-48, $88FFFFFF, 1);
+        Textures.Cursor.Draw(FMap.List[FMouseX+1, FMouseY-1].Position.X*32-48, FMap.List[FMouseX+1, FMouseY-1].Position.Y*32-48, $88FFFFFF, 1);
+        Textures.Cursor.Draw(FMap.List[FMouseX-1, FMouseY+1].Position.X*32-48, FMap.List[FMouseX-1, FMouseY+1].Position.Y*32-48, $88FFFFFF, 1);
+        Textures.Cursor.Draw(FMap.List[FMouseX+1, FMouseY+1].Position.X*32-48, FMap.List[FMouseX+1, FMouseY+1].Position.Y*32-48, $88FFFFFF, 1);
+      end;
+     // FMap.VisibleMap(FMap.Focus, mItem, MAP_HOME, CollMap);
+      //temp := FMap.GetMapPos(CollMap);
+     // FQuad.DrawLine(temp.X, temp.Y, CollMap.Position.X*32, CollMap.Position.Y*32, $FFFF8800);
+     // temp := FMap.GetCollPoint(FMap.Focus, CollMap);
+     // Textures.Cursor.DrawRot(temp.X, temp.Y, 0, 1, $FFFFFFFF, 1);
+    end
+    else
+   //   if  Assigned(FMap.Focus) and Assigned(FMap.Focus.Units) and (FMap.Focus.Units.Player = 0) then
+        DrawArrows;
+  end;
+
+  EffectsEngine.Draw;
+  DrawPanel;
+end;
+
+procedure TBattleGameMode.DrawPanel;
+var
+  i, X, Y: Integer;
+  Units: TCustomUnit;
+begin
+
+  FQuad.Rectangle(0, 737, 1024, 768, $FFEEEEEE);
+  FQuad.DrawLine(0, 736, 1924, 736, $FFFFFFFF);
+  i := 0;
+
+  for X := 0 to FMap.W-3 do
+  begin
+    for Y := 0 to FMap.H-3 do
+    begin
+      Textures.Grid.Draw(32 * X, 32 * Y, $44000000);
+      Textures.Grid.DrawRot(32 * X+16, 32 * Y+16, 90, 1, $44000000);
+    end;
+    if X < 9 then
+      Fonts.Grid.TextOut(32*X+25, 2, 1, PAnsiChar(AnsiString(IntToStr(X+1))), $FFCCCCCC)
+    else
+      Fonts.Grid.TextOut(32*X+20, 2, 1, PAnsiChar(AnsiString(IntToStr(X+1))), $FFCCCCCC);
+
+    if X < 24 then
+      Fonts.Grid.TextOut(2, 32*X-10, 1, PAnsiChar(AnsiString(Chr(X+64))), $FFCCCCCC);
+  end;
+
+
+
+  X := 16;
+  i := 0;
+  while (X < 1024-96) and (i < FUnitList.Count - 1) do
+  begin
+    if i > FUnitList.Count - 1 then
+      sleep(10);
+    if Assigned(UnitsList[i]) and (UnitsList[i].HP > 0) {and FMap.List[UnitsList[i].MapX, UnitsList[i].MapY].Visible} then
+    begin
+      UnitsList[i].Draw(X, 752, False);
+    //  Fonts.Grid.TextOut(UnitsList[i].MapX*32-30, UnitsList[i].MapY*32-30, 1, PAnsiChar(AnsiString(IntToStr((X+16) div 32))), $FF000000);
+      if FMap.GetMap(UnitsList[i]).Visible[0] then
+        Fonts.Grid.TextOut(X-14, 736, 1, PAnsiChar(AnsiString(Chr(UnitsList[i].MapY+64)+IntToStr(UnitsList[i].MapX+1))), $FF000000);
+      Inc(X, 32);
+    end
+    else
+      Inc(X, 32);
+   //   FQuad.Rectangle(X-16, 752-16, X-16, 752+16, $FF000000);
+    Inc(i);
+  end;
+  if coll.PointRect(FMouseXp, FMouseYp, coll.ToRect(1024-64, 768-32, 32, 32)) then
+    Textures.Botton.Draw(1024-64, 768-32, $FFAAAAAA, 0)
+  else
+    Textures.Botton.Draw(1024-64, 768-32, $FFFFFFFF, 0);
+  if coll.PointRect(FMouseXp, FMouseYp, coll.ToRect(1024-32, 768-32, 32, 32)) then
+    Textures.Botton.Draw(1024-32, 768-32, $FFAAAAAA, 1)
+  else
+    Textures.Botton.Draw(1024-32, 768-32, $FFFFFFFF, 1);
+end;
+
+function TBattleGameMode.GetUnitsList(Index: Integer): TCustomUnit;
+begin
+  Result := TCustomUnit(FUnitList.Items[Index]);
+end;
+
+procedure TBattleGameMode.DrawArrows;
+  function GetColor(AItem: PMapItem): Cardinal;
+  begin
+    if FMap.Focus.Units.Config.Distance >= AItem^.Distance then
+      Result := $FF008800
+    else
+      Result := $FFFF0000;
+  end;
+  procedure DrawArrow(aX, aY: Single; aA, aF: Integer; aC: Cardinal);
+  begin
+    Textures.Arrow.DrawRot(aX*32-14, aY*32-13, aA, 1, $66000000, aF);
+    Textures.Arrow.DrawRot(aX*32-16, aY*32-16, aA, 1, aC, aF);
+  end;
+var
+  nItem, Item, mItem: PMapItem;
+  Color: Cardinal;
+  pX, pY, X, Y, nX, nY: Integer;
+begin
+  mItem := FMap.List[FMouseX, FMouseY];
+  if (FListGoPoints.Count = 0) and (Assigned(FMap.Focus.Units) and (FMap.Focus.Units.Player = 0)) and Assigned(mItem^.ToItem) then
+  begin
+    DrawArrow(FMouseX, FMouseY, 0, 0, GetColor(mItem));
+    nItem := mItem;
+    Item := mItem^.ToItem;
+    while Assigned(Item^.ToItem) do
+    begin
+      nX := Round(nItem^.Position.X);
+      nY := Round(nItem^.Position.Y);
+      X := Round(Item^.Position.X);
+      Y := Round(Item^.Position.Y);
+      pX := Round(Item^.ToItem^.Position.X);
+      pY := Round(Item^.ToItem^.Position.Y);
+      Color := GetColor(Item);
+
+
+      if (pY > Y) and (Y < nY) and (pX < nX) then
+        DrawArrow(X, Y, 0, 7, Color)
+      else if (pY < Y) and (Y > nY) and (pX > nX) then
+        DrawArrow(X, Y, 180, 7, Color)
+      else if (pX < X) and (X > nX) and (pY < nY) then
+        DrawArrow(X, Y, 90, 7, Color)
+      else if (pX > X) and (X < nX) and (pY > nY) then
+        DrawArrow(X, Y, 270, 7, Color)
+
+      else if (pY > Y) and (Y < nY) and (pX > nX) then
+        DrawArrow(X, Y, 0, 8, Color)
+      else if (pY < Y) and (Y > nY) and (pX < nX) then
+        DrawArrow(X, Y, 180, 8, Color)
+      else if (pX < X) and (X > nX) and (pY > nY) then
+        DrawArrow(X, Y, 90, 8, Color)
+      else if (pX > X) and (X < nX) and (pY < nY) then
+        DrawArrow(X, Y, 270, 8, Color)
+      //
+      else if (pY = Y) and (Y < nY) and (pX > nX) and (Y < nY) then
+        DrawArrow(X, Y, 0, 2, Color)
+      else if (pY = Y) and (Y > nY) and (pX < nX) and (Y > nY) then
+        DrawArrow(X, Y, 180, 2, Color)
+      else if (pX = X) and (X > nX) and (pY > nY) and (X > nX) then
+        DrawArrow(X, Y, 90, 2, Color)
+      else if (pX = X) and (X < nX) and (pY < nY) and (X < nX) then
+        DrawArrow(X, Y, 270, 2, Color)
+
+      else if (pY = Y) and (Y < nY) and (pX < nX) then
+        DrawArrow(X, Y, 0, 6, Color)
+      else if (pY = Y) and (Y > nY) and (pX > nX) then
+        DrawArrow(X, Y, 180, 6, Color)
+      else if (pX = X) and (X > nX) and (pY < nY) then
+        DrawArrow(X, Y, 90, 6, Color)
+      else if (pX = X) and (X < nX) and (pY > nY) then
+        DrawArrow(X, Y, 270, 6, Color)
+      //
+      else if (nY = Y) and (Y > pY) and (pX > nX) then
+        DrawArrow(X, Y, 0, 1, Color)
+      else if (nY = Y) and (Y < pY) and (pX < nX) then
+        DrawArrow(X, Y, 180, 1, Color)
+      else if (nX = X) and (X < pX) and (pY > nY) then
+        DrawArrow(X, Y, 90, 1, Color)
+      else if (nX = X) and (X > pX) and (pY < nY) then
+        DrawArrow(X, Y, 270, 1, Color)
+
+      else if (nY = Y) and (Y > pY) and (pX < nX) then
+        DrawArrow(X, Y, 0, 5, Color)
+      else if (nY = Y) and (Y < pY) and (pX > nX) then
+        DrawArrow(X, Y, 180, 5, Color)
+      else if (nX = X) and (X < pX) and (pY < nY) then
+        DrawArrow(X, Y, 90, 5, Color)
+      else if (nX = X) and (X > pX) and (pY > nY) then
+        DrawArrow(X, Y, 270, 5, Color)
+      //
+      else if (pX < X) and (X < nX) and (pY < nY) and (nY <> Y) then
+        DrawArrow(X, Y, 270, 3, Color)
+      else if (pX > X) and (X > nX) and (pY > nY) and (nY <> Y) then
+        DrawArrow(X, Y, 90, 3, Color)
+      else if (pX < X) and (X < nX) and (pY > nY) and (nY <> Y) then
+        DrawArrow(X, Y, 180, 3, Color)
+      else if (pX > X) and (X > nX) and (pY < nY) and (nY <> Y) then
+        DrawArrow(X, Y, 0, 3, Color)
+
+      else if (pX = X) and (X = nX) and (pY < nY) then
+        DrawArrow(X, Y, 0, 4, Color)
+      else if (pX = X) and (X = nX) and (pY > nY) then
+        DrawArrow(X, Y, 180, 4, Color)
+      else if (pY = Y) and (Y = nY) and (pX > nX) then
+        DrawArrow(X, Y, 90, 4, Color)
+      else if (pY = Y) and (Y = nY) and (pX < nX) then
+        DrawArrow(X, Y, 270, 4, Color)
+      ;
+
+      nItem := Item;
+      Item := Item^.ToItem;
+    end;
+  end;
+end;
+
+end.

@@ -1,0 +1,221 @@
+unit Resources;
+
+interface
+
+uses
+  Windows, QuadEngine, Direct3D9, Vec2f, mSettings;
+
+type
+  TFonts = class
+  private
+    const PATH = 'Data\Fonts\';
+  public
+    Console: IQuadFont;
+
+    procedure LoadFonts(AQuadDevice: IQuadDevice);
+    destructor Destroy; override;
+  end;
+
+  TTextures = class
+  private
+    const PATH = 'Data\Textures\';
+  public
+    Floor: IQuadTexture;
+    Wall: IQuadTexture;
+
+    Hero: IQuadTexture;
+    HeroEye: IQuadTexture;
+
+    MapRender: IQuadTexture;
+    Light: IQuadTexture;
+    Light1: IQuadTexture;
+    Light2: IQuadTexture;
+    Light3: IQuadTexture;
+    Light4: IQuadTexture;
+    Light5: IQuadTexture;
+    LightRender1: IQuadTexture;
+    LightRender2: IQuadTexture;
+
+    Exit: IQuadTexture;
+
+    botton: IQuadTexture;
+
+    Black: IQuadTexture;
+    Shadows: IQuadTexture;
+    ShadowsDraw: IQuadTexture;
+    procedure LoadTextures(AQuadDevice: IQuadDevice; AQuadRender: IQuadRender);
+    destructor Destroy; override;
+  end;
+
+  TShaders = class
+  private
+    const PATH = 'Data\Shaders\';
+  public
+    HeroShader: IQuadShader;
+    HeroShaderVector: TVec2f;
+
+    Light: IQuadShader;
+    LightParam: record
+      X, Y, Radius: Single;
+    end;
+    LightColor: TVec3f;
+
+    Smoothing1: IQuadShader;
+    Smoothing2: IQuadShader;
+
+    DrawBlack: IQuadShader;
+
+    Dark: IQuadShader;
+    Dark1: IQuadShader;
+    DarkVector: TVec2f;
+
+    procedure LoadShaders(AQuadDevice: IQuadDevice);
+    destructor Destroy; override;
+  end;
+
+var
+  Fonts: TFonts;
+  Textures: TTextures;
+  Shaders: TShaders;
+
+implementation
+
+{ TFonts }
+
+destructor TFonts.Destroy;
+begin
+  Console := nil;
+
+  inherited;
+end;
+
+procedure TFonts.LoadFonts(AQuadDevice: IQuadDevice);
+begin
+  AQuadDevice.CreateFont(Console);
+  Console.LoadFromFile(PATH + 'console.png', PATH + 'console.qef');
+end;
+
+{ TTextures }
+
+destructor TTextures.destroy;
+begin
+  Floor := nil;
+  Wall := nil;
+
+  Hero := nil;
+  HeroEye := nil;
+  Light := nil;
+  Light1 := nil;
+  Light2 := nil;
+  Light3 := nil;
+  Light4 := nil;
+  Light5 := nil;
+
+  MapRender := nil;
+  LightRender1 := nil;
+  LightRender2 := nil;
+
+  Black := nil;
+  Shadows := nil;
+  ShadowsDraw := nil;
+  Exit := nil;
+  inherited;
+end;
+
+procedure TTextures.LoadTextures(AQuadDevice: IQuadDevice; AQuadRender: IQuadRender);
+begin
+  AQuadDevice.CreateAndLoadTexture(0, PATH + 'Floor.jpg', Floor, 64, 64);
+  AQuadDevice.CreateAndLoadTexture(0, PATH + 'Wall.jpg', Wall, 64, 64);
+
+  AQuadDevice.CreateAndLoadTexture(0, PATH + 'Hero.png', Hero);
+  Hero.LoadFromFile(1, PATH + 'Perlin.png');
+
+  AQuadDevice.CreateAndLoadTexture(0, PATH + 'Hero2.png', HeroEye);
+  AQuadDevice.CreateAndLoadTexture(0, PATH + 'Light.jpg', Light);
+  AQuadDevice.CreateAndLoadTexture(0, PATH + 'Light1.jpg', Light1);
+  AQuadDevice.CreateAndLoadTexture(0, PATH + 'Light2.jpg', Light2);
+  AQuadDevice.CreateAndLoadTexture(0, PATH + 'Light3.jpg', Light3);
+  AQuadDevice.CreateAndLoadTexture(0, PATH + 'Light4.jpg', Light4);
+  AQuadDevice.CreateAndLoadTexture(0, PATH + 'Light5.jpg', Light5);
+
+  AQuadDevice.CreateAndLoadTexture(0, PATH + 'Black.jpg', Black);
+
+  AQuadRender.CreateRenderTexture(512, 512, MapRender, 0);
+  AQuadRender.CreateRenderTexture(512, 512, MapRender, 1);
+
+  AQuadRender.CreateRenderTexture(512, 512, LightRender1, 0);
+  AQuadRender.CreateRenderTexture(512, 512, LightRender2, 0);
+
+  AQuadRender.CreateRenderTexture(1024, 1024, Shadows, 0);
+
+  AQuadRender.CreateRenderTexture(512, 512, ShadowsDraw, 0);
+  ShadowsDraw.LoadFromFile(1, PATH + 'Perlin.png');
+  ShadowsDraw.LoadFromFile(2, PATH + 'Dark.jpg');
+
+  AQuadDevice.CreateAndLoadTexture(0, PATH + 'botton.png', botton, 128, 128);
+
+  AQuadDevice.CreateAndLoadTexture(0, PATH + 'botton.png', Exit);
+
+
+//  botton.LoadFromFile(1, PATH + 'Perlin.png');
+end;
+
+{ TShaders }
+
+destructor TShaders.Destroy;
+begin
+  HeroShader := nil;
+  Light := nil;
+  Smoothing1 := nil;
+  Smoothing2 := nil;
+  DrawBlack := nil;
+  Dark := nil;
+  Dark1 := nil;
+  inherited;
+end;
+
+procedure TShaders.LoadShaders(AQuadDevice: IQuadDevice);
+begin
+  AQuadDevice.CreateShader(HeroShader);
+  HeroShader.LoadPixelShader(PATH + 'Hero.bin');
+  HeroShader.BindVariableToPS(0, @HeroShaderVector, 1);
+  HeroShaderVector := TVec2f.Create(0, 0);
+
+  AQuadDevice.CreateShader(Light);
+  Light.LoadPixelShader(PATH + 'Light.bin');
+//  Light.LoadPixelShader(PATH + 'ps_temp.bin');
+  Light.BindVariableToPS(0, @LightParam, 1);
+ // Light.BindVariableToPS(1, @LightColor, 1);
+
+  AQuadDevice.CreateShader(Smoothing1);
+  Smoothing1.LoadPixelShader(PATH + 'Smoothing1.bin');
+  AQuadDevice.CreateShader(Smoothing2);
+  Smoothing2.LoadPixelShader(PATH + 'Smoothing2.bin');
+
+  AQuadDevice.CreateShader(DrawBlack);
+ // DrawBlack.LoadPixelShader(PATH + 'Black.bin');
+  DrawBlack.LoadPixelShader(PATH + 'Black.bin');
+
+  AQuadDevice.CreateShader(Dark);
+  Dark.LoadPixelShader(PATH + 'Dark.bin');
+  //Dark.LoadPixelShader(PATH + 'ps_temp.bin');
+  Dark.BindVariableToPS(0, @DarkVector, 1);
+  DarkVector := TVec2f.Create(0, 0);
+
+  AQuadDevice.CreateShader(Dark1);
+  Dark1.LoadPixelShader(PATH + 'ps_temp.bin');
+  Dark1.BindVariableToPS(0, @DarkVector, 1);
+
+end;
+
+initialization
+  Fonts := TFonts.Create;
+  Textures := TTextures.Create;
+  Shaders := TShaders.Create;
+
+finalization
+  Fonts.Free;
+  Textures.Free;
+  Shaders.Free;
+
+end.

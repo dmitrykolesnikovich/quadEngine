@@ -1,0 +1,113 @@
+unit mSettings;
+
+interface
+
+uses
+  Windows, Classes, SysUtils, IniFiles, Vec2f;
+
+type
+  TSettings = class
+  private
+    const SECTIONGRAPHICS = 'Graphics';
+    const SECTIONAUDIO = 'Audio';
+    function GetCamera: TVec2f;
+  public
+  const
+    FILENAME = 'Settings.ini';  
+    WindowWidth = 1024;
+    WindowHeight = 768;
+  var
+    fullscreen: Boolean;
+    IsGlowEnabled: Boolean;
+    IsMotionBlurEnabled: Boolean;
+    IsParticlesEnabled: Boolean;
+    IsShowFPS: Boolean;
+    IsMaximize: Boolean;
+    ApplicationPath: string;
+    PlayerColor: Cardinal;
+    PlayerColorIndex: Integer;
+    MusicVolume: Integer;
+
+    GameScale: Single;
+    GameCamera: TVec2f;
+    procedure Initialize;
+    procedure Finalize;
+    function GetCoordX(X: Single): Single;
+    function GetCoordY(Y: Single): Single;
+
+    property Camera: TVec2f read GetCamera;
+  end;
+
+var
+  Settings: TSettings;
+
+implementation
+
+{ TSettings }
+
+procedure TSettings.Finalize;
+var
+  ini: TIniFile;
+begin
+  ApplicationPath := ExtractFilePath(ParamStr(0));
+
+  ini := TIniFile.Create(ApplicationPath + FILENAME);
+  try
+    ini.WriteBool(SECTIONGRAPHICS, 'Fullscreen', fullscreen);
+    ini.WriteBool(SECTIONGRAPHICS, 'Glow', IsGlowEnabled);
+    ini.WriteBool(SECTIONGRAPHICS, 'MotionBlur', IsMotionBlurEnabled);
+    ini.WriteBool(SECTIONGRAPHICS, 'ShowFPS', IsShowFPS);
+    ini.WriteBool(SECTIONGRAPHICS, 'Maximize', IsMaximize);
+    ini.WriteInteger(SECTIONGRAPHICS, 'PlayerColor', PlayerColorIndex);
+    ini.WriteInteger(SECTIONAUDIO, 'MusicVolume', MusicVolume);
+  finally
+    ini.Free;
+  end;
+end;
+
+function TSettings.GetCamera: TVec2f;
+begin
+  Result := GameCamera * GameScale;
+end;
+
+function TSettings.GetCoordX(X: Single): Single;
+begin
+  Result := (X - GameCamera.X) * GameScale;
+end;
+
+function TSettings.GetCoordY(Y: Single): Single;
+begin
+  Result := (Y - GameCamera.Y) * GameScale;
+end;
+
+procedure TSettings.Initialize;
+var
+  ini: TIniFile;
+begin
+  ApplicationPath := ExtractFilePath(ParamStr(0));
+
+  GameScale := 1.0;
+
+  ini := TIniFile.Create(ApplicationPath + FILENAME);
+  try
+    fullscreen := ini.ReadBool(SECTIONGRAPHICS, 'Fullscreen', False);
+    IsGlowEnabled := ini.ReadBool(SECTIONGRAPHICS, 'Glow', True);
+    IsMotionBlurEnabled := ini.ReadBool(SECTIONGRAPHICS, 'MotionBlur', True);
+    IsShowFPS := ini.ReadBool(SECTIONGRAPHICS, 'ShowFPS', False);
+    IsMaximize := ini.ReadBool(SECTIONGRAPHICS, 'Maximize', False);
+    PlayerColorIndex := ini.ReadInteger(SECTIONGRAPHICS, 'PlayerColor', 0);
+    MusicVolume := ini.ReadInteger(SECTIONAUDIO, 'MusicVolume', 10);
+  finally
+    ini.Free;
+  end;
+end;
+
+initialization
+  Settings := TSettings.Create;
+  Settings.Initialize;
+
+finalization
+  Settings.Finalize;
+  Settings.Free;
+
+end.

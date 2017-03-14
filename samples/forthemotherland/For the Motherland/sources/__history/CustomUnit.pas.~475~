@@ -1,0 +1,292 @@
+unit CustomUnit;
+
+interface
+
+uses
+  QuadEngine, mSettings, Resources, SysUtils, Classes, Vec2f, UnitsConfig;
+
+type
+  TUnitDelay = record
+    X, Y, T: Integer;
+  end;
+
+  TCustomUnit = class
+  private
+    FQuad: IQuadRender;
+    FFrame: Single;
+    FHP: Integer;
+    FConfig: PUnitConfig;
+    FPlayer: Integer;
+    FDelay: TUnitDelay;
+    procedure SetConfigs(AConfig: PUnitConfig);
+  public
+    X, Y: Single;
+    sX, sY: Integer;
+    Went, Atack: Boolean;
+    MapX, MapY: Integer;
+    constructor Create(AQuad: IQuadRender; APlayer: Byte);
+    procedure Draw(aX, aY: Single; AStatic: Boolean = True); virtual;
+    procedure Process(delta: Double);
+    function GetColor: Cardinal;
+    function GetDmg: Integer; overload;
+    function GetDmg(AUnit: TCustomUnit): Integer; overload;
+    procedure SetDelay(AT: Integer); overload;
+    procedure SetDelay(X, Y: Integer); overload;
+    function StartPosition: TVec2f;
+
+    property Config: PUnitConfig read FConfig write SetConfigs;
+    property HP: Integer read FHP write FHP;
+    property Player: Integer read FPlayer;
+    property Delay: TUnitDelay read FDelay;
+  end;
+       {
+  TUnitTankT26 = class(TCustomUnit)
+  public
+    constructor Create(AQuad: IQuadRender; APlayer: Byte);
+  end;
+
+  TUnitTankH39 = class(TCustomUnit)
+  public
+    constructor Create(AQuad: IQuadRender; APlayer: Byte);
+  end;
+
+  TUnitTankSU26 = class(TCustomUnit)
+  public
+    constructor Create(AQuad: IQuadRender; APlayer: Byte);
+  end;
+
+  TUnitSolder = class(TCustomUnit)
+  public
+    constructor Create(AQuad: IQuadRender; APlayer: Byte);
+  end;
+          }
+implementation
+
+{ TCustomUnit }
+
+procedure TCustomUnit.Draw(aX, aY: Single; AStatic: Boolean);
+var
+  HPFrame, PlayerFrame: Integer;
+  Color: Cardinal;
+begin
+  case Player of
+    0: begin
+      Color := $FF00FF00;
+      PlayerFrame := 0;
+    end;
+    1: begin
+      Color := $FFFF0000;
+      PlayerFrame := 1;
+    end;
+  end;
+  if (FHP > 0) or (FConfig.UnitType <> UNIT_SOLDIER) then
+    if AStatic and ((X <> 0) or (Y <> 0)) then
+      Textures.Units.Draw(aX + X - 32, aY + Y - 16, Color, FConfig.Frame*2+PlayerFrame)
+    else
+      Textures.Units.Draw(aX - 32, aY - 16, Color, FConfig.Frame*2+PlayerFrame);
+
+  if (Settings.HPVisible) and (FHP > 0) then
+  begin
+    HPFrame := 10 - Round(FHP / FConfig.HP * 10 + 0.5);
+    if FHP <= 0 then
+      HPFrame := 11
+    else if (FHP > 0) and (HPFrame = 11) then
+      HPFrame := 10;
+
+    if AStatic and ((X <> 0) or (Y <> 0)) then
+      Textures.Health.Draw(aX + X - 15, aY + Y + 10, $FFFFFFFF, HPFrame)
+    else
+      Textures.Health.Draw(aX - 15, aY + 10, $FFFFFFFF, HPFrame);
+  end;
+
+  if FHP <= 0 then
+    if FConfig.UnitType <> UNIT_SOLDIER then
+      Textures.Flame.Draw(aX - 13, aY - 26, $FFFFFFFF, Round(FFrame))
+    else
+      Textures.Decor.Draw(aX - 13, aY - 26, Color, 2)
+
+  {
+  FQuad.SetBlendMode(qbmNone);
+  case FDelay.T of
+    0: FQuad.DrawLine(FDelay.X*32-16, FDelay.Y*32-16, MapX*32-16, MapY*32-16, $FFFF0000);
+    1: FQuad.DrawLine(FDelay.X*32-16, FDelay.Y*32-16, MapX*32-16, MapY*32-16, $FF00AA00);
+  end;
+  FQuad.SetBlendMode(qbmSrcAlpha);     }
+end;
+
+function TCustomUnit.GetColor: Cardinal;
+begin
+  case FPlayer of
+    0: Result := $FF000000;
+    1: Result := $FFFF0000;
+    else Result := $FFFF00FF;
+  end;
+end;
+
+function TCustomUnit.GetDmg(AUnit: TCustomUnit): Integer;
+begin
+  Result := Round(GetDmg / (1 + AUnit.Config.Armor/100));
+end;
+
+function TCustomUnit.GetDmg: Integer;
+begin
+  Result := Config.DmgMin + Random(Config.DmgMax - Config.DmgMin);
+end;
+
+procedure TCustomUnit.Process(delta: Double);
+begin
+  if FHP <= 0 then
+  begin
+    FFrame := FFrame + 10*delta;
+    if FFrame >= 31.5 then
+      FFrame := 0;
+  end;
+end;
+
+procedure TCustomUnit.SetDelay(AT: Integer);
+begin
+  FDelay.T := AT;
+end;
+
+procedure TCustomUnit.SetDelay(X, Y: Integer);
+begin
+  FDelay.X := X;
+  FDelay.Y := Y;
+end;
+
+function TCustomUnit.StartPosition: TVec2f;
+begin
+  Result := TVec2f.Create(sX, sY);
+end;
+
+procedure TCustomUnit.SetConfigs(AConfig: PUnitConfig);
+begin
+  FConfig := AConfig;
+  FHP := FConfig.HP;
+end;
+
+constructor TCustomUnit.Create(AQuad: IQuadRender; APlayer: Byte);
+begin
+  FQuad := AQuad;
+  FPlayer := APlayer;
+  Went := False;
+  Atack := False;
+  X := 0;
+  Y := 0;
+  FDelay.X := 0;
+  FDelay.Y := 0;
+  FDelay.T := -1;
+
+  FFrame := 0;
+end;
+
+{
+
+constructor TUnitTankT26.Create(AQuad: IQuadRender; APlayer: Byte);
+begin
+  FConfig.Map[MAP_HOME]   := 1000;
+  FConfig.Map[MAP_WATER]  := 1000;
+  FConfig.Map[MAP_WADE]   := 20;
+  FConfig.Map[MAP_GROUND] := 10;
+  FConfig.Map[MAP_FOREST] := 40;
+  FConfig.Map[MAP_BRIDGE] := 10;
+  FConfig.Map[MAP_SAND] := 5;
+
+  FConfig.ID := 1;
+  FConfig.UnitType := UNIT_TANK_LIGHT;
+  FConfig.Speed    := 100;
+  FConfig.Distance := 50;
+  FConfig.HP       := 40;
+  FConfig.DmgMin   := 10;
+  FConfig.DmgMax   := 15;
+  FConfig.Armor    := 1;
+  FConfig.Arack    := 150;
+  FConfig.Visible  := 150;
+  FConfig.VisibleForest := 80;
+  FConfig.Frame := 0;
+
+  inherited Create(AQuad, APlayer);
+end;
+
+
+constructor TUnitTankH39.Create(AQuad: IQuadRender; APlayer: Byte);
+begin
+  FConfig.Map[MAP_HOME]   := 1000;
+  FConfig.Map[MAP_WATER]  := 1000;
+  FConfig.Map[MAP_WADE]   := 20;
+  FConfig.Map[MAP_GROUND] := 10;
+  FConfig.Map[MAP_FOREST] := 40;
+  FConfig.Map[MAP_BRIDGE] := 10;
+  FConfig.Map[MAP_SAND] := 6;
+
+  FConfig.ID := 2;
+  FConfig.UnitType := UNIT_TANK_LIGHT;
+  FConfig.Speed    := 100;
+  FConfig.Distance := 50;
+  FConfig.HP       := 40;
+  FConfig.DmgMin   := 10;
+  FConfig.DmgMax   := 15;
+  FConfig.Armor    := 1;
+  FConfig.Arack    := 150;
+  FConfig.Visible  := 150;
+  FConfig.VisibleForest := 80;
+  FConfig.Frame := 1;
+
+  inherited Create(AQuad, APlayer);
+end;
+
+
+constructor TUnitSolder.Create(AQuad: IQuadRender; APlayer: Byte);
+begin
+  FConfig.Map[MAP_HOME]   := 1000;
+  FConfig.Map[MAP_WATER]  := 50;
+  FConfig.Map[MAP_WADE]   := 40;
+  FConfig.Map[MAP_GROUND] := 10;
+  FConfig.Map[MAP_FOREST] := 10;
+  FConfig.Map[MAP_BRIDGE] := 10;
+  FConfig.Map[MAP_SAND] := 6;
+
+  FConfig.ID := 0;
+  FConfig.Speed    := 100;
+  FConfig.Distance := 30;
+  FConfig.HP       := 80;
+  FConfig.DmgMin   := 10;
+  FConfig.DmgMax   := 20;
+  FConfig.Armor    := 0;
+  FConfig.Arack    := 30;
+  FConfig.Visible  := 150;
+  FConfig.VisibleForest := 80;
+  FConfig.Frame := 3;
+
+  inherited Create(AQuad, APlayer);
+end;
+
+
+constructor TUnitTankSU26.Create(AQuad: IQuadRender; APlayer: Byte);
+begin
+  FConfig.Map[MAP_WATER]  := 1000;
+  FConfig.Map[MAP_WADE]   := 20;
+  FConfig.Map[MAP_GROUND] := 10;
+  FConfig.Map[MAP_BRIDGE] := 10;
+  FConfig.Map[MAP_FOREST] := 35;
+  FConfig.Map[MAP_HOME]   := 1000;
+  FConfig.Map[MAP_SAND] := 8;
+
+  FConfig.ID := 3;
+  FConfig.UnitType := UNIT_ARTILLERY;
+  FConfig.Speed    := 100;
+  FConfig.Distance := 35;
+  FConfig.HP       := 20;
+  FConfig.DmgMin   := 20;
+  FConfig.DmgMax   := 30;
+  FConfig.Armor    := 0;
+  FConfig.Arack    := 400;
+  FConfig.Visible  := 150;
+  FConfig.VisibleForest := 80;
+  FConfig.Frame := 2;
+
+  inherited Create(AQuad, APlayer);
+end;
+
+     }
+end.

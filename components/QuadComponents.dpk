@@ -1,0 +1,42 @@
+package QuadComponents;
+                                        
+{$R *.res}
+{$ALIGN 8}
+{$ASSERTIONS ON}
+{$BOOLEVAL OFF}
+{$DEBUGINFO ON}
+{$EXTENDEDSYNTAX ON}
+{$IMPORTEDDATA ON}
+{$IOCHECKS ON}
+{$LOCALSYMBOLS ON}
+{$LONGSTRINGS ON}
+{$OPENSTRINGS ON}
+{$OPTIMIZATION ON}
+{$OVERFLOWCHECKS OFF}
+{$RANGECHECKS OFF}
+{$REFERENCEINFO ON}
+{$SAFEDIVIDE OFF}
+{$STACKFRAMES OFF}
+{$TYPEDADDRESS OFF}
+{$VARSTRINGCHECKS ON}
+{$WRITEABLECONST OFF}
+{$MINENUMSIZE 1}
+{$IMAGEBASE $400000}
+{$IMPLICITBUILD ON}
+
+requires
+  rtl,
+  vcl;
+
+contains
+  QuadIcon in 'QuadIcon.pas',
+  QuadMemo in 'QuadMemo.pas',
+  FloatSpinEdit in 'FloatSpinEdit.pas',
+  Quad.Diagram in 'Quad.Diagram.pas',
+  Quad.EffectTimeLine in 'Quad.EffectTimeLine.pas',
+  Quad.GradientEdit in 'Quad.GradientEdit.pas',
+  QuadReg in 'QuadReg.pas',
+  Quad.ObjectInspector in 'Quad.ObjectInspector.pas',
+  Quad.CanvasGL in 'Quad.CanvasGL.pas';
+
+end.

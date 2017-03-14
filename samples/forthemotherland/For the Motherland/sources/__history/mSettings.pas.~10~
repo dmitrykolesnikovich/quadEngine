@@ -1,0 +1,70 @@
+unit mSettings;
+
+interface
+
+uses
+  Windows, Classes, SysUtils, IniFiles;
+
+type
+  TSettings = class
+  private
+    const SECTIONGRAPHICS = 'Graphics';
+    const SECTIONAUDIO = 'Audio';
+    const SECTIONGAME = 'Game';
+  public
+  const
+    FILENAME = 'Settings.ini';  
+    WindowWidth = 1024;
+    WindowHeight = 768;
+  var
+    ApplicationPath: string;
+    HPVisible: Boolean;
+    UnitSpeed: Integer;
+    procedure Initialize;
+    procedure Finalize;
+  end;
+
+var
+  Settings: TSettings;
+
+implementation
+
+{ TSettings }
+
+procedure TSettings.Finalize;
+var
+  ini: TIniFile;
+begin
+  ApplicationPath := ExtractFilePath(ParamStr(0));
+
+  ini := TIniFile.Create(ApplicationPath + FILENAME);
+  try
+    //ini.WriteBool(SECTIONGAME, 'HPVisible', HPVisible);
+  finally
+    ini.Free;
+  end;
+end;
+
+procedure TSettings.Initialize;
+var
+  ini: TIniFile;
+begin
+  ApplicationPath := ExtractFilePath(ParamStr(0));
+
+  ini := TIniFile.Create(ApplicationPath + FILENAME);
+  try
+    HPVisible := ini.ReadBool(SECTIONGAME, 'HPVisible', True);
+  finally
+    ini.Free;
+  end;
+end;
+
+initialization
+  Settings := TSettings.Create;
+  Settings.Initialize;
+
+finalization
+  Settings.Finalize;
+  Settings.Free;
+
+end.

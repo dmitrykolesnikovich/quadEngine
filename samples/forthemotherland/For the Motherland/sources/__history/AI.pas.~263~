@@ -1,0 +1,199 @@
+unit AI;
+
+interface
+
+uses
+  QuadEngine, CustomUnit, Classes, Map, Collision, Vec2f, Controls, UnitsConfig;
+
+type
+  PMinMax = ^TMinMax;
+  TMinMax = record
+    ItemMax, ItemMin: PMapItem;
+    sMin, sMax: Single;
+    Active: Boolean;
+  end;
+
+  TAIEngine = class
+  private
+    FMap: TMap;
+    FTempList: TList;
+  public
+    constructor Create(AMap: TMap);
+    destructor Destroy; override;
+    function UnitH39: Boolean;
+    function InitMitMax: TMinMax;
+    function AI: Boolean;
+    function OnMouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer): Boolean;
+
+    procedure MinMaxValue(AMinMax: PMinMax; AValue: Single; AMap: PMapItem);
+  end;
+
+implementation
+
+{ TCustomAI }
+
+function TAIEngine.AI: Boolean;
+begin
+  if Assigned(FMap) and Assigned(FMap.Focus) and Assigned(FMap.Focus.Units)
+    and (FMap.Focus.Units.HP > 0) then
+   // case FMap.Focus.Units.Config.ID of
+   //   0: ;
+   //   2:
+      Result := UnitH39;
+   // end;
+end;
+
+constructor TAIEngine.Create(AMap: TMap);
+begin
+  FMap := AMap;
+  FTempList := TList.Create;
+end;
+
+destructor TAIEngine.Destroy;
+begin
+  FTempList.Free;
+  inherited;
+end;
+
+function TAIEngine.InitMitMax: TMinMax;
+begin
+  Result.ItemMax := nil;
+  Result.ItemMin := nil;
+  Result.sMin := 10000;
+  Result.sMax := -10000;
+  Result.Active := False;
+end;
+
+procedure TAIEngine.MinMaxValue(AMinMax: PMinMax; AValue: Single;
+  AMap: PMapItem);
+begin
+  if not AMinMax.Active or (AMinMax.sMin > AValue) then
+  begin
+    AMinMax.sMin := AValue;
+    AMinMax.ItemMin := AMap;
+  end
+  else
+    if (AMinMax.sMin = AValue) and (Random(2) = 1) then
+      AMinMax.ItemMin := AMap;
+
+  if not AMinMax.Active or (AMinMax.sMax < AValue) then
+  begin
+    AMinMax.sMax := AValue;
+    AMinMax.ItemMax := AMap;
+    AMinMax.Active := True;
+  end
+  else
+    if (AMinMax.sMax = AValue) and (Random(2) = 1) then
+      AMinMax.ItemMax := AMap;
+end;
+
+function TAIEngine.OnMouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer): Boolean;
+var
+  Item, mItem: PMapItem;
+  temp: TVec2f;
+begin
+  Result := False;
+  mItem := FMap.List[X, Y];
+  if (Button = mbLeft) and Assigned(FMap.Focus) then
+  begin
+    temp := (FMap.Focus^.Position*32 - mItem^.Position*32);
+    if (temp.Length < FMap.Focus.Units.Config.Arack) and Assigned(mItem.Units)
+      and (mItem.Visible[0]) and (mItem.Units.Player <> FMap.Focus.Units.Player)
+      and (mItem.Units.HP > 0) then
+    begin
+      FMap.UnitAtack(FMap.Focus, mItem);
+      Result := True;
+      FMap.Focus^.Units.Went := True;
+    end;
+    if (FMap.ListGoPoints.Count = 0) and Assigned(FMap.Focus) and Assigned(FMap.Focus^.Units)
+      and not FMap.Focus^.Units.Went { and (FMap.Focus^.Units.Player = 0)} then
+      if Assigned(FMap.List[X, Y]^.ToItem) then
+      begin
+        FMap.Focus^.Units.Went := True;
+        FMap.InitListGoPoints(FMap.List[X, Y]);
+      end;
+  end;
+end;
+
+function TAIEngine.UnitH39: Boolean;
+var
+  iUnit: TCustomUnit;
+  Item: TCustomUnit;
+  DUnitHP, DUnitDistance, DUnitDmg, DUnitDistanceT: TMinMax;
+  Vec, VecDelay: TVec2f;
+  Temp: Single;
+  i, Player: Integer;
+  Map: PMapItem;
+begin
+  Result := True;
+  iUnit := FMap.Focus.Units;
+  FTempList.Clear;
+  FMap.UnitsToList(FTempList);
+
+  Player := iUnit.Player;
+
+  DUnitHP := InitMitMax;
+  DUnitDistance := InitMitMax;
+  DUnitDmg := InitMitMax;
+  DUnitDistanceT := InitMitMax;
+  for i := 0 to FTempList.Count - 1 do
+  begin
+    Item := TCustomUnit(FTempList[i]);
+    Vec := (FMap.GetMap(Item).Position * 32 - FMap.Focus.Position * 32);
+    if FMap.Focus.Units.Delay.T > -1 then
+      VecDelay := (FMap.GetMap(Item).Position * 32 - TVec2f.Create(FMap.Focus.Units.Delay.X, FMap.Focus.Units.Delay.Y) * 32);
+    if (Item.Player <> Player) and (Item.HP > 0) then
+    begin
+      Temp := iUnit.GetDmg(Item);
+      if (Vec.Length < iUnit.Config.Arack) and FMap.GetMap(Item).Visible[Player] and (not FMap.VisibleMap(FMap.Focus, Item, MAP_HOME)
+    or (Item.Config.UnitType = UNIT_ARTILLERY) or Item.Config.UnitType = UNIT_REACT_ART) then
+      begin
+         {and not FMap.VisibleMap(FMap.GetMap(iUnit), FMap.GetMap(Item), MAP_HOME)}
+        MinMaxValue(@DUnitDmg, Temp, FMap.GetMap(Item));
+        MinMaxValue(@DUnitDistance, Vec.Length, FMap.GetMap(Item));
+        MinMaxValue(@DUnitHP, Item.HP, FMap.GetMap(Item));
+      end;
+      if (FMap.Focus.Units.Delay.T > -1) and (VecDelay.Length < 200) then
+        MinMaxValue(@DUnitDistanceT, VecDelay.Length, FMap.GetMap(Item));
+    end;
+  end;
+
+  if DUnitHP.Active then
+  begin
+    FMap.UnitAtack(FMap.Focus, DUnitHP.ItemMin);
+    Exit;
+  end;
+
+  if (iUnit.Config.Distance = 0) then
+    Exit;
+
+  case FMap.Focus.Units.Delay.T of
+    0: //Atack
+    begin
+      Temp := FMap.Focus.Position.Distance(TVec2f.Create(FMap.Focus.Units.Delay.X, FMap.Focus.Units.Delay.Y));
+      if Temp > 0 then
+      begin
+        FMap.InitListGoPoints(FMap.List[iUnit.Delay.X, iUnit.Delay.Y]);
+        Result := False;
+      end;
+    end;
+    1: //Def
+    begin
+      Temp := FMap.Focus.Position.Distance(FMap.Focus.Units.StartPosition);
+      if DUnitDistanceT.Active then
+      begin
+        FMap.InitListGoPoints(DUnitDistanceT.ItemMin);
+        Result := False;
+      end
+      else
+        if Temp > 0 then
+        begin
+          FMap.InitListGoPoints(FMap.List[FMap.Focus.Units.sX, FMap.Focus.Units.sY]);
+          Result := False;
+        end;
+    end;
+  end;
+
+end;
+
+end.

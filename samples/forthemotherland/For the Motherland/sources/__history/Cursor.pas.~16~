@@ -1,0 +1,38 @@
+unit Cursor;
+
+interface
+
+uses
+  Windows, QuadEngine, mSettings, Resources;
+
+type
+  TCursors = class
+  private
+    FQuad: IQuadRender;
+  public
+    Tip: Integer;
+    constructor Create(AQuad: IQuadRender);
+    procedure Draw;
+  end;
+
+var
+  Cursors: TCursors;
+
+implementation
+
+{ TCursors }
+
+constructor TCursors.Create(AQuad: IQuadRender);
+begin
+  FQuad := AQuad;
+end;
+
+procedure TCursors.Draw;
+var
+  Position: TPoint;
+begin
+  ScreenToClient(Position);
+  Textures.Cursor.Draw(Position.X, Position.Y, $FFFFFFFF, Tip);
+end;
+
+end.

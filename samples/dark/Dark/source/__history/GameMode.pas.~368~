@@ -1,0 +1,235 @@
+unit GameMode;
+
+interface
+
+uses
+  QuadEngine, Classes, Controls, CustomGameMode, Hero, Floor, Vec2f, Inputs,
+  Maps, mSettings, Resources, SysUtils, Collision;
+
+const
+  HERO_SPEED: Integer = 300;
+
+type
+  TGameMode = class(TCustomGameMode)
+  protected
+    FFloor: TFloor;
+    FMap: TMap;
+    FHero: THero;
+    FQuad: IQuadRender;
+    FLvl : Integer;
+    FMenu: Boolean;
+    procedure SetMenu(Index: Boolean);
+  public
+    constructor Create(AQuadRender: IQuadRender);
+    destructor Destroy; override;
+    procedure Draw(dt: Double); override;
+    procedure Process(const dt: Double); override;
+    procedure ProcessCamere(const dt: Double);
+
+    procedure RefreshCamera;
+
+    property Menu: Boolean read FMenu write SetMenu;
+  end;
+
+implementation
+
+{ TGameMode }
+
+constructor TGameMode.Create(AQuadRender: IQuadRender);
+begin
+  Menu := False;
+  FLvl := 1;
+  FQuad := AQuadRender;
+  FFloor := TFloor.Create(AQuadRender);
+  FHero := THero.Create(AQuadRender);
+  FMap := TMap.Create(AQuadRender);
+  FMap.SetHero(FHero);
+  FMap.LoadMap(FLvl);
+end;
+
+destructor TGameMode.Destroy;
+begin
+  FFloor.Free;
+  FMap.Free;
+  FHero.Free;
+  inherited;
+end;
+
+procedure TGameMode.Process(const dt: Double);
+begin
+  inherited;
+  ProcessCamere(dt);
+  FFloor.Process(dt);
+  FHero.VectorZero;
+
+  if Input.KeyDown[Input.Key.F1] then
+  begin
+    FMap.LoadMap;
+  end;
+
+  if not Menu and (FHero.Scale > 0.3) then
+  begin
+    if Input.KeyDown[Input.Key.ESCAPE] then
+      Menu := True;
+
+    if Input.KeyDown[Input.Key.W] or Input.KeyDown[Input.Key.UP] then
+      FHero.Vector := TVec2f.Create(FHero.Vector.X, -HERO_SPEED);
+
+    if Input.KeyDown[Input.Key.S] or Input.KeyDown[Input.Key.DOWN] then
+      FHero.Vector := TVec2f.Create(FHero.Vector.X, HERO_SPEED);
+
+    if Input.KeyDown[Input.Key.A] or Input.KeyDown[Input.Key.LEFT] then
+      FHero.Vector := TVec2f.Create(-HERO_SPEED, FHero.Vector.Y);
+
+    if Input.KeyDown[Input.Key.D] or Input.KeyDown[Input.Key.RIGHT] then
+      FHero.Vector := TVec2f.Create(HERO_SPEED, FHero.Vector.Y);
+
+    if Input.KeyDown[Input.Key.MINUS] then
+      FHero.Scale := FHero.Scale - 0.01;
+
+    if Input.KeyDown[Input.Key.EQUALS] then
+      FHero.Scale := FHero.Scale + 0.01;
+  end ;
+ { else
+    if Menu and Input.KeyDown[Input.Key.ESCAPE] then
+      Menu := False; }
+
+  FHero.Process(dt);
+  RefreshCamera;
+
+  FMap.Collides;
+end;
+
+procedure TGameMode.ProcessCamere(const dt: Double);
+begin          {
+  if Input.MouseWheelUp then
+    Settings.GameScale := Settings.GameScale - 8 * dt;
+  if Input.MouseWheelDown then
+    Settings.GameScale := Settings.GameScale + 8 * dt;
+
+  if Settings.GameScale < 0.5 then
+    Settings.GameScale := 0.5
+  else if Settings.GameScale > 1 then
+    Settings.GameScale := 1;   }
+end;
+
+procedure TGameMode.RefreshCamera;
+var
+  ScreenW, ScreenH: Single;
+begin
+  ScreenW := Settings.WindowWidth / Settings.GameScale;
+  ScreenH := Settings.WindowHeight / Settings.GameScale;
+
+  Settings.GameCamera.X := FHero.Position.X - ScreenW / 2;
+  Settings.GameCamera.Y := FHero.Position.Y - ScreenH / 2;
+
+  if Settings.GameCamera.X < 0 then
+    Settings.GameCamera.X := 0
+  else if Settings.GameCamera.X > FMap.Size.X - ScreenW then
+    Settings.GameCamera.X := FMap.Size.X - ScreenW;
+
+  if Settings.GameCamera.Y < 0 then
+    Settings.GameCamera.Y := 0
+  else if Settings.GameCamera.Y > FMap.Size.Y - ScreenH then
+    Settings.GameCamera.Y := FMap.Size.Y - ScreenH;
+end;
+
+procedure TGameMode.SetMenu(Index: Boolean);
+begin
+  FMenu := Index;
+  if Assigned(FMap) then
+    FMap.Menu := Index;
+end;
+
+procedure TGameMode.Draw(dt: Double);
+var
+  Rect: T2DRect;
+begin
+  inherited;
+
+  FFloor.Draw(dt);
+  FMap.Draw(dt);
+  FMap.DrawShadow(dt);
+  FMap.DrawLight(dt);
+  FMap.DrawLight1(dt);
+  FHero.Draw(dt);
+
+  FQuad.SetBlendMode(qbmSrcAlpha);
+  if Menu then
+  begin
+    Textures.botton.DrawFrame(1024/2-64, 768/2-64-144, 0);
+    Rect.X := 1024/2-64;
+    Rect.Y := 768/2-144;
+    Rect.W := 128;
+    Rect.H := 128;
+    if  Coll.PointRect(Input.Mouse.X, Input.Mouse.Y, Rect) and Input.MouseDown[mbLeft] then
+    begin
+      Menu := False;
+    end;
+    Textures.botton.DrawFrame(1024/2-64, 768/2-64, 1);
+    Rect.X := 1024/2-64;
+    Rect.Y := 768/2-64;
+    Rect.W := 128;
+    Rect.H := 128;
+    if  Coll.PointRect(Input.Mouse.X, Input.Mouse.Y, Rect) and Input.MouseDown[mbLeft] then
+    begin
+      FMap.LoadMap(FLvl);
+      Menu := False;
+    end;
+  end
+  else
+  if FHero.Scale > 0.3 then
+  begin
+    if FMap.GetHeroExit then
+    begin
+      Textures.botton.DrawFrame(1024/2-64, 768/2-64, 3);
+
+      Rect.X := 1024/2-64;
+      Rect.Y := 768/2-64;
+      Rect.W := 128;
+      Rect.H := 128;
+      if  Coll.PointRect(Input.Mouse.X, Input.Mouse.Y, Rect) and Input.MouseDown[mbLeft] then
+      begin
+        Inc(FLvl);
+        FMap.LoadMap(FLvl);
+      end;
+    end;
+  end
+  else
+  begin
+    Textures.botton.DrawFrame(1024/2-64, 768/2-64, 1);
+    Rect.X := 1024/2-64;
+    Rect.Y := 768/2-64;
+    Rect.W := 128;
+    Rect.H := 128;
+    if  Coll.PointRect(Input.Mouse.X, Input.Mouse.Y, Rect) and Input.MouseDown[mbLeft] then
+    begin
+      FMap.LoadMap(FLvl);
+    end;
+  end;
+
+
+ // FMap.FormPaint;
+
+
+//  FHero.DrawCircle;
+
+  FQuad.Rectangle(8, 8, 50, 10, $AA000000);
+  Fonts.Console.TextOut(10, 10, 1, PAnsiChar(AnsiString(FloatToStr(FHero.Scale*100))), $FFFF0000);
+  {
+  Fonts.Console.TextOut(10, 10, 1, PAnsiChar(AnsiString(FloatToStr(Settings.WindowWidth/Settings.GameScale))), $FFFF0000);
+  Fonts.Console.TextOut(10, 20, 1, PAnsiChar(AnsiString(FloatToStr(Settings.WindowHeight/Settings.GameScale))), $FFFF0000);
+
+  Fonts.Console.TextOut(10, 30, 1, PAnsiChar(AnsiString(FloatToStr(FMap.Size.X))), $FFFF0000);
+  Fonts.Console.TextOut(10, 40, 1, PAnsiChar(AnsiString(FloatToStr(FMap.Size.Y))), $FFFF0000);
+
+  Fonts.Console.TextOut(10, 50, 1, PAnsiChar(AnsiString(FloatToStr(Settings.GameCamera.X))), $FFFF0000);
+  Fonts.Console.TextOut(10, 60, 1, PAnsiChar(AnsiString(FloatToStr(Settings.GameCamera.Y))), $FFFF0000);
+
+  Fonts.Console.TextOut(10, 70, 1, PAnsiChar(AnsiString(FloatToStr(0.5 - Settings.GameCamera.X / Settings.WindowWidth))), $FFFF0000);
+  Fonts.Console.TextOut(10, 80, 1, PAnsiChar(AnsiString(FloatToStr(0.4 - Settings.GameCamera.Y / Settings.WindowHeight))), $FFFF0000);
+                             }
+  FQuad.SetBlendMode(qbmNone);
+end;
+
+end.

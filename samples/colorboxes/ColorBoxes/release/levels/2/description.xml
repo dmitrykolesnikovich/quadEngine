@@ -1,0 +1,8 @@
+﻿<?xml version="1.0" encoding="utf-16"?>
+<LevelObj xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Number>2</Number>
+  <name>о смысле жизни</name>
+  <description>отыщи своего близнеца</description>
+  <levelColor>Blue</levelColor>
+  <Orientation>Horizontal</Orientation>
+</LevelObj>

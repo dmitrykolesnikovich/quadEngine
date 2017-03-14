@@ -1,0 +1,8 @@
+﻿<?xml version="1.0" encoding="utf-16"?>
+<LevelObj xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Number>4</Number>
+  <name>игры с цветом 2</name>
+  <description>попробуем еще</description>
+  <levelColor>Red</levelColor>
+  <Orientation>Horizontal</Orientation>
+</LevelObj>

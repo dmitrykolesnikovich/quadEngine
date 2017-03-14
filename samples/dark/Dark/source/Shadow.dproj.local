@@ -1,0 +1,11 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<BorlandProject>
+	<Transactions>
+    <Transaction>2012.09.12 20:45:29.311.pas,F:\_85\sources\Unit1.pas=F:\_85\sources\CustomGameObject.pas</Transaction>
+    <Transaction>2012.09.12 20:57:28.858.pas,F:\_85\sources\Unit1.pas=F:\_85\sources\Hero.pas</Transaction>
+    <Transaction>2012.09.12 21:23:37.691.pas,F:\_85\sources\Unit1.pas=F:\_85\sources\GameMode.pas</Transaction>
+    <Transaction>2012.09.12 21:31:37.101.pas,F:\_85\sources\Unit1.pas=F:\_85\sources\Floor.pas</Transaction>
+    <Transaction>2012.09.13 18:35:28.426.pas,F:\_85\sources\Unit1.pas=F:\_85\sources\Inputs.pas</Transaction>
+    <Transaction>2012.09.13 21:32:00.527.pas,F:\_85\sources\Unit1.pas=F:\_85\sources\Maps.pas</Transaction>
+  </Transactions>
+</BorlandProject>

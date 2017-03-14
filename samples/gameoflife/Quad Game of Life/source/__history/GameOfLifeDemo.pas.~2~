@@ -1,0 +1,637 @@
+unit GameOfLifeDemo;
+
+interface
+
+uses
+  Winapi.Windows,
+  Vcl.Controls,
+  QuadEngine;
+
+type
+  TDemo = class sealed (TObject)
+    strict private
+      FDevice: IQuadDevice;
+      FRender: IQuadRender;
+      FTimer: IQuadTimer;
+      FFont: IQuadFont;
+
+      FScreenWidth, FScreenHeight: Integer;
+
+      FCurrentLifeShader: IQuadShader;
+      FSimpleLifeShader: IQuadShader;
+      FLifeDeathShader: IQuadShader;
+      FHighpassShader: IQuadShader;
+      FBlurVShader: IQuadShader;
+      FBlurHShader: IQuadShader;
+      FAberrationShader: IQuadShader;
+
+      FScreenBuffers: array [0..4] of IQuadTexture;
+      FBlurBuffers: array [0..7] of IQuadTexture;
+      FCurrentBufer: Byte;
+      FCurrentFrame: Byte;
+
+      FPixelStep: Single;
+      FPixelSize: array [0..1] of Single;
+
+      FAberrationStep: Single;
+      FAberrationPixelSize: array [0..1] of Single;
+
+      FBlurStep: Single;
+      FBlurPixelSize: array [0..1] of Single;
+
+      FHighpass: Single;
+      FDeadCellColor: array [0..3] of Single;
+      FTime: Double;
+
+      FQuadLogo: IQuadTexture;
+      FLogoSize: Single;
+      FBrush: IQuadTexture;
+      FBrushSize: Single;
+
+      FIsUseAdditionalShaders: Boolean;
+      FIsDrawBrush: Boolean;
+      FIsDrawEraser: Boolean;
+      FIsDrawLogo: Boolean;
+      FIsNeedClear: Boolean;
+      FIsRunLife: Boolean;
+      FDrawVLine, FDrawHLine: Boolean;
+      FIsDrawInfo: Boolean;
+
+      FNeedUpdateOld: Boolean;
+      FOldMouseX, FMouseX: Integer;
+      FOldMouseY, FMouseY: Integer;
+      FLeftButtonPressed: Boolean;
+      FRightButtonPressed: Boolean;
+
+      procedure SetPixelStep(AStep: Single);
+      procedure SetBlurStep(AStep: Single);
+      procedure SetAberrationStep(AStep: Single);
+
+      procedure PrepareDemo;
+      procedure PrepareBuffers;
+      procedure PrepareTextures;
+      procedure PrepareShaders;
+      procedure PrepareLifeShaders;
+      procedure PrepareBlurShaders;
+      procedure PrepareAberrationShader;
+    private
+      class var Instance: TDemo;
+      FIsDemoWork: Boolean;
+
+      procedure Draw;
+      procedure Update(ADelta: Double);
+    public
+      constructor Create;
+      destructor Destroy; override;
+
+      procedure Initialize(AHandle: THandle);
+
+      procedure StartDemo;
+      procedure StopDemo;
+
+      procedure OnMouseDown(AButton: TMouseButton; X, Y: Integer);
+      procedure OnMouseMove(X, Y: Integer);
+      procedure OnMouseUp(AButton: TMouseButton; X, Y: Integer);
+
+      procedure OnKeyDown(AKey: Word);
+      procedure OnKeyUp(AKey: Word);
+
+      property ScreenWidth: Integer read FScreenWidth;
+      property ScreenHeight: Integer read FScreenHeight;
+  end;
+
+implementation
+
+uses
+  System.SysUtils,
+  System.Math;
+
+const
+  PULSATION_PERIOD = 6;
+
+procedure TimerHandler(out Delta: Double; Id: Cardinal); stdcall;
+begin
+  if Assigned(TDemo.Instance) and TDemo.Instance.FIsDemoWork then
+  begin
+    TDemo.Instance.Update(Delta);
+    TDemo.Instance.Draw;
+  end;
+end;
+
+{$REGION '  TDemo  '}
+constructor TDemo.Create;
+begin
+  if Assigned(Instance) then
+    raise Exception.Create('Demo already created');
+
+  Instance := Self;
+
+  FScreenWidth := 1280;//GetSystemMetrics(SM_CXSCREEN);
+  FScreenHeight := 720;//GetSystemMetrics(SM_CYSCREEN);
+
+  FDevice := CreateQuadDevice;
+  FDevice.CreateRender(FRender);
+
+  FDevice.CreateTimer(FTimer);
+  FTimer.SetCallBack(TimerHandler);
+  FTimer.SetInterval(16);
+end;
+
+destructor TDemo.Destroy;
+begin
+  Instance := nil;
+
+  FTimer.SetState(False);
+
+  FBrush := nil;
+  FQuadLogo := nil;
+  FSimpleLifeShader := nil;
+  FLifeDeathShader := nil;
+  FHighpassShader := nil;
+  FBlurVShader := nil;
+  FBlurHShader := nil;
+  FAberrationShader := nil;
+
+  FTimer:= nil;
+  FRender.Finalize;
+  FRender:= nil;
+  FDevice:= nil;
+
+  inherited;
+end;
+
+procedure TDemo.Initialize(AHandle: NativeUInt);
+begin
+  FRender.Initialize(AHandle, ScreenWidth, ScreenHeight, True);
+  PrepareDemo;
+end;
+
+procedure TDemo.PrepareDemo;
+begin
+  Randomize;
+
+  PrepareBuffers;
+  PrepareShaders;
+  PrepareTextures;
+
+  FDevice.CreateAndLoadFont('font\quad.png', 'font\quad.qef', FFont);
+
+  FIsDrawBrush := False;
+  FIsDrawEraser := False;
+  FIsRunLife := True;
+  FNeedUpdateOld := False;
+  FIsDrawInfo := False;
+  FIsDemoWork := False;
+end;
+
+procedure TDemo.PrepareBuffers;
+begin
+  FDevice.CreateRenderTarget(ScreenWidth, ScreenHeight,
+                             FScreenBuffers[0], 0);
+  FDevice.CreateRenderTarget(ScreenWidth, ScreenHeight,
+                             FScreenBuffers[1], 0);
+  FDevice.CreateRenderTarget(ScreenWidth div 2, ScreenHeight div 2,
+                             FScreenBuffers[2], 0);
+  FDevice.CreateRenderTarget(ScreenWidth, ScreenHeight,
+                             FScreenBuffers[3], 0);
+  FDevice.CreateRenderTarget(ScreenWidth, ScreenHeight,
+                             FScreenBuffers[4], 0);
+
+  FDevice.CreateRenderTarget(ScreenWidth div 2, ScreenHeight div 2,
+                             FBlurBuffers[0], 0);
+  FDevice.CreateRenderTarget(ScreenWidth div 2, ScreenHeight div 2,
+                             FBlurBuffers[1], 0);
+  FDevice.CreateRenderTarget(ScreenWidth div 4, ScreenHeight div 4,
+                             FBlurBuffers[2], 0);
+  FDevice.CreateRenderTarget(ScreenWidth div 4, ScreenHeight div 4,
+                             FBlurBuffers[3], 0);
+  FDevice.CreateRenderTarget(ScreenWidth div 8, ScreenHeight div 8,
+                             FBlurBuffers[4], 0);
+  FDevice.CreateRenderTarget(ScreenWidth div 8, ScreenHeight div 8,
+                             FBlurBuffers[5], 0);
+  FDevice.CreateRenderTarget(ScreenWidth div 16, ScreenHeight div 16,
+                             FBlurBuffers[6], 0);
+  FDevice.CreateRenderTarget(ScreenWidth div 16, ScreenHeight div 16,
+                             FBlurBuffers[7], 0);
+
+  FCurrentBufer := 0;
+end;
+
+procedure TDemo.PrepareTextures;
+begin
+  FDevice.CreateAndLoadTexture(0, 'textures\quadlogo.png', FQuadLogo);
+  FLogoSize := Max(FQuadLogo.GetSpriteWidth, FQuadLogo.GetSpriteHeight);
+  FLogoSize := FScreenHeight * 0.68 / FLogoSize;
+
+  FDevice.CreateAndLoadTexture(0, 'textures\brush.png', FBrush);
+  FBrushSize := 0.025 * ScreenHeight / FBrush.GetSpriteHeight;
+end;
+
+procedure TDemo.PrepareShaders;
+begin
+  PrepareLifeShaders;
+  PrepareBlurShaders;
+  PrepareAberrationShader;
+end;
+
+procedure TDemo.PrepareLifeShaders;
+begin
+  SetPixelStep(1);
+
+  FDevice.CreateShader(FSimpleLifeShader);
+  FSimpleLifeShader.LoadPixelShader('shaders\life.bin');
+  FSimpleLifeShader.BindVariableToPS(1, @FPixelSize, 1);
+
+  FDevice.CreateShader(FLifeDeathShader);
+  FLifeDeathShader.LoadPixelShader('shaders\life_n_death.bin');
+  FLifeDeathShader.BindVariableToPS(1, @FPixelSize, 1);
+  FLifeDeathShader.BindVariableToPS(2, @FDeadCellColor, 1);
+
+  FRender.SetTextureFiltering(qtfLinear);
+  FCurrentLifeShader := FSimpleLifeShader;
+end;
+
+procedure TDemo.PrepareBlurShaders;
+begin
+  FBlurStep := 1.25;
+  SetBlurStep(FBlurStep);
+  FHighpass := 0.45;
+
+  FDevice.CreateShader(FHighpassShader);
+  FHighpassShader.LoadPixelShader('shaders\highpass.bin');
+  FHighpassShader.BindVariableToPS(1, @FHighpass, 1);
+
+  FDevice.CreateShader(FBlurHShader);
+  FBlurHShader.LoadPixelShader('shaders\blur_h.bin');
+  FBlurHShader.BindVariableToPS(1, @FBlurPixelSize, 1);
+
+  FDevice.CreateShader(FBlurVShader);
+  FBlurVShader.LoadPixelShader('shaders\blur_v.bin');
+  FBlurVShader.BindVariableToPS(1, @FBlurPixelSize, 1);
+end;
+
+procedure TDemo.PrepareAberrationShader;
+begin
+  SetAberrationStep(1.25);
+
+  FDevice.CreateShader(FAberrationShader);
+  FAberrationShader.LoadPixelShader('shaders\aberration.bin');
+  FAberrationShader.BindVariableToPS(1, @FAberrationPixelSize, 1);
+end;
+
+procedure TDemo.SetPixelStep(AStep: Single);
+begin
+  FPixelStep := AStep;
+  FPixelSize[0] := FPixelStep / ScreenWidth;
+  FPixelSize[1] := FPixelStep / ScreenHeight;
+end;
+
+procedure TDemo.SetBlurStep(AStep: Single);
+begin
+  FBlurPixelSize[0] := AStep / ScreenWidth;
+  FBlurPixelSize[1] := AStep / ScreenHeight;
+end;
+
+procedure TDemo.SetAberrationStep(AStep: Single);
+begin
+  FAberrationStep := AStep;
+  FAberrationPixelSize[0] := FAberrationStep / ScreenWidth;
+  FAberrationPixelSize[1] := FAberrationStep / ScreenHeight;
+end;
+
+procedure TDemo.Draw;
+var
+  I, ACount: Integer;
+  X, Y, ALength: Single;
+  AColors: array [0..3] of Cardinal;
+  AColor: Cardinal;
+  ASize: Single;
+begin
+  FRender.BeginRender;
+
+  FRender.SetBlendMode(qbmNone);
+  FRender.SetTextureAdressing(qtaWrap);
+  FRender.RenderToTexture(True, FScreenBuffers[FCurrentBufer]);
+    FCurrentLifeShader.SetShaderState(FIsRunLife and not (FIsDrawBrush or FIsDrawEraser));
+      FScreenBuffers[1 - FCurrentBufer].Draw(0, 0);
+    FCurrentLifeShader.SetShaderState(False);
+
+    if FIsNeedClear then
+    begin
+      FIsNeedClear := False;
+      FRender.Rectangle(0, 0, FScreenWidth, FScreenHeight, $FF000000);
+    end;
+
+    if FIsDrawBrush or FIsDrawEraser then
+    begin
+      if FIsDrawBrush then
+      begin
+        AColor := $FFFFFFFF;
+        ASize := FBrushSize;
+      end
+      else
+      begin
+        AColor := $FF000000;
+        ASize := 4 * FBrushSize;
+      end;
+
+      ALength := Sqrt(Sqr(FMouseX - FOldMouseX) + Sqr(FMouseY - FOldMouseY));
+      ACount := Round(ALength * 0.5);
+
+      FRender.SetBlendMode(qbmSrcAlpha);
+      for I := 0 to ACount do
+      begin
+        X := FOldMouseX + (FMouseX - FOldMouseX) * I / ACount;
+        Y := FOldMouseY + (FMouseY - FOldMouseY) * I / ACount;
+        FBrush.DrawRot(X, Y, 0, ASize, AColor);
+      end;
+    end;
+
+    if FIsDrawLogo then
+    begin
+      if FIsUseAdditionalShaders then
+        AColor := $FF828282
+      else
+        AColor := $FFFFFFFF;
+
+      FRender.SetBlendMode(qbmAdd);
+      FQuadLogo.DrawRot(FScreenWidth * 0.5, FScreenHeight * 0.5,
+                        0, FLogoSize, AColor);
+      FRender.SetBlendMode(qbmNone);
+    end;
+
+    if FDrawVLine then
+    begin
+      FDrawVLine := False;
+      X := Trunc(FScreenWidth * 0.5);
+      FRender.Rectangle(X - 1, 0, X + 1, FScreenHeight, $FFFFFFFF);
+    end;
+
+    if FDrawHLine then
+    begin
+      FDrawHLine := False;
+      Y := Trunc(FScreenHeight * 0.5);
+      FRender.Rectangle(0, Y - 1, FScreenWidth, Y + 1, $FFFFFFFF);
+    end;
+  FRender.RenderToTexture(False, FScreenBuffers[FCurrentBufer]);
+
+  FRender.SetBlendMode(qbmNone);
+  if not FIsUseAdditionalShaders then
+  begin
+    FScreenBuffers[FCurrentBufer].Draw(0, 0);
+  end
+  else
+  begin
+    if FCurrentFrame = 0 then
+    begin
+      FRender.RenderToTexture(True, FScreenBuffers[2]);
+        FHighpassShader.SetShaderState(True);
+          FScreenBuffers[FCurrentBufer].Draw(0, 0);
+        FHighpassShader.SetShaderState(False);
+      FRender.RenderToTexture(False, FScreenBuffers[2]);
+
+      //1 pass
+      SetBlurStep(2 * FBlurStep);
+      FRender.RenderToTexture(True, FBlurBuffers[0]);
+        FBlurHShader.SetShaderState(True);
+          FScreenBuffers[2].DrawMap(0, 0, FScreenWidth, FScreenHeight,
+                                    0, 0, 1, 1);
+        FBlurHShader.SetShaderState(False);
+      FRender.RenderToTexture(False, FBlurBuffers[0]);
+
+      FRender.RenderToTexture(True, FBlurBuffers[1]);
+        FBlurVShader.SetShaderState(True);
+          FBlurBuffers[0].DrawMap(0, 0, FScreenWidth, FScreenHeight,
+                                  0, 0, 1, 1);
+        FBlurVShader.SetShaderState(False);
+      FRender.RenderToTexture(False, FBlurBuffers[1]);
+
+      //2 pass
+      SetBlurStep(4 * FBlurStep);
+      FRender.RenderToTexture(True, FBlurBuffers[2]);
+        FBlurHShader.SetShaderState(True);
+          FBlurBuffers[1].DrawMap(0, 0, FScreenWidth, FScreenHeight,
+                                  0, 0, 1, 1);
+        FBlurHShader.SetShaderState(False);
+      FRender.RenderToTexture(False, FBlurBuffers[2]);
+
+      FRender.RenderToTexture(True, FBlurBuffers[3]);
+        FBlurVShader.SetShaderState(True);
+          FBlurBuffers[2].DrawMap(0, 0, FScreenWidth, FScreenHeight,
+                                  0, 0, 1, 1);
+        FBlurVShader.SetShaderState(False);
+      FRender.RenderToTexture(False, FBlurBuffers[3]);
+
+      //3 pass
+      SetBlurStep(8 * FBlurStep);
+      FRender.RenderToTexture(True, FBlurBuffers[4]);
+        FBlurHShader.SetShaderState(True);
+          FBlurBuffers[3].DrawMap(0, 0, FScreenWidth, FScreenHeight,
+                                  0, 0, 1, 1);
+        FBlurHShader.SetShaderState(False);
+      FRender.RenderToTexture(False, FBlurBuffers[4]);
+
+      FRender.RenderToTexture(True, FBlurBuffers[5]);
+        FBlurVShader.SetShaderState(True);
+          FBlurBuffers[4].DrawMap(0, 0, FScreenWidth, FScreenHeight,
+                                  0, 0, 1, 1);
+        FBlurVShader.SetShaderState(False);
+      FRender.RenderToTexture(False, FBlurBuffers[5]);
+
+      //4 pass
+      SetBlurStep(16 * FBlurStep);
+      FRender.RenderToTexture(True, FBlurBuffers[6]);
+        FBlurHShader.SetShaderState(True);
+          FBlurBuffers[5].DrawMap(0, 0, FScreenWidth, FScreenHeight,
+                                  0, 0, 1, 1);
+        FBlurHShader.SetShaderState(False);
+      FRender.RenderToTexture(False, FBlurBuffers[6]);
+
+      FRender.RenderToTexture(True, FBlurBuffers[7]);
+        FBlurVShader.SetShaderState(True);
+          FBlurBuffers[6].DrawMap(0, 0, FScreenWidth, FScreenHeight,
+                                  0, 0, 1, 1);
+        FBlurVShader.SetShaderState(False);
+      FRender.RenderToTexture(False, FBlurBuffers[7]);
+    end;
+
+    // aplly
+    FRender.SetTextureAdressing(qtaWrap);
+    AColors[0] := $FF404040;
+    AColors[1] := $FF505050;
+    AColors[2] := $FF606060;
+    AColors[3] := $FF9C9C9C;
+    FRender.RenderToTexture(True, FScreenBuffers[3]);
+      FScreenBuffers[FCurrentBufer].Draw(0, 0, $FFFFFFFF);
+      FRender.SetBlendMode(qbmAdd);
+        FBlurBuffers[1].DrawMap(0, 0, FScreenWidth, FScreenHeight,
+                                0.0012, 0.0015, 1.0012, 1.0015,
+                                AColors[0]);
+
+        FBlurBuffers[3].DrawMap(0, 0, FScreenWidth, FScreenHeight,
+                                0.0028, 0.003, 1.0028, 1.003,
+                                AColors[1]);
+
+        FBlurBuffers[5].DrawMap(0, 0, FScreenWidth, FScreenHeight,
+                                0.007, 0.01, 1.007, 1.01,
+                                AColors[2]);
+
+        FBlurBuffers[7].DrawMap(0, 0, FScreenWidth, FScreenHeight,
+                                0.02, 0.032, 1.02, 1.032,
+                                AColors[3]);
+      FRender.SetBlendMode(qbmNone);
+    FRender.RenderToTexture(False, FScreenBuffers[3]);
+
+    FRender.RenderToTexture(True, FScreenBuffers[4]);
+      FAberrationShader.SetShaderState(True);
+        FScreenBuffers[3].Draw(0, 0);
+      FAberrationShader.SetShaderState(False);
+    FRender.RenderToTexture(False, FScreenBuffers[4]);
+
+    FAberrationShader.SetShaderState(True);
+      FScreenBuffers[4].Draw(0, 0);
+    FAberrationShader.SetShaderState(False);
+  end;
+  FCurrentBufer := 1 - FCurrentBufer;
+  Inc(FCurrentFrame);
+  if FCurrentFrame > (2 * FTimer.GetFPS + 1) / 60 then
+    FCurrentFrame := 0;
+
+  FRender.SetBlendMode(qbmSrcAlpha);
+  if FIsDrawInfo then
+  begin
+    FFont.TextOut(10, 10, 1, 'Press ''-'' for hide help', $40606060);
+    FFont.TextOut(10, 30, 1, 'E - use additional effects', $40808080);
+    FFont.TextOut(10, 50, 1, 'S - classical life', $40808080);
+    FFont.TextOut(10, 70, 1, 'D - death life', $40808080);
+    FFont.TextOut(10, 90, 1, 'Q - draw Quad logo', $40808080);
+    FFont.TextOut(10, 110, 1, 'Space - pause life', $40808080);
+    FFont.TextOut(10, 130, 1, 'C - clear screen', $40808080);
+    FFont.TextOut(10, 150, 1, 'V - draw vertical line', $40808080);
+    FFont.TextOut(10, 170, 1, 'H - draw horisontal line', $40808080);
+    FFont.TextOut(10, 190, 1, 'LMB - draw on screen', $40808080);
+    FFont.TextOut(10, 210, 1, 'RMB - clear life on screen', $40808080);
+  end
+  else
+    FFont.TextOut(10, 10, 1, 'Press ''+'' for show help', $40606060, qfaLeft);
+  FFont.TextOut(FScreenWidth - 10, 10, 1,
+                PWideChar(Format('%3.0f', [FTimer.GetFPS])),
+                $60808080, qfaRight);
+
+  FRender.EndRender;
+end;
+
+procedure TDemo.Update(ADelta: Double);
+var
+  AAngle: Single;
+  APeriod: Single;
+begin
+  FNeedUpdateOld := True;
+  FIsDrawBrush := FLeftButtonPressed;
+  FIsDrawEraser := FRightButtonPressed;
+
+  FTime := FTime + ADelta;
+  if (FTime > PULSATION_PERIOD) then
+    FTime := FTime - PULSATION_PERIOD;
+
+  AAngle := 2 * Pi * (FTime / PULSATION_PERIOD) - Pi * 0.6;
+  APeriod := 2 * Pi * FTime / PULSATION_PERIOD;
+  FDeadCellColor[0] := 0.1 + 0.06 * Cos(APeriod) + 0.2 * Cos(AAngle);
+  FDeadCellColor[1] := 0.55 + 0.2 * Cos(APeriod) + 0.2 * Cos(AAngle);
+  FDeadCellColor[2] := 0.6 - 0.1 * Cos(APeriod) + 0.1 * Sin(AAngle);
+end;
+
+procedure TDemo.StartDemo;
+begin
+  FTimer.SetState(True);
+  FIsDemoWork := True;
+end;
+
+procedure TDemo.StopDemo;
+begin
+  FIsDemoWork := False;
+  FTimer.SetState(False);
+end;
+
+procedure TDemo.OnMouseDown(AButton: TMouseButton; X: Integer; Y: Integer);
+begin
+  if AButton = mbLeft then
+  begin
+    FLeftButtonPressed := True;
+    FRightButtonPressed := False;
+  end;
+  if AButton = mbRight then
+  begin
+    FRightButtonPressed := True;
+    FLeftButtonPressed := False;
+  end;
+  FOldMouseX := X;
+  FOldMouseY := Y;
+  FMouseX := X;
+  FMouseY := Y;
+end;
+
+procedure TDemo.OnMouseMove(X: Integer; Y: Integer);
+begin
+  if FNeedUpdateOld then
+  begin
+    FNeedUpdateOld := False;
+    FOldMouseX := FMouseX;
+    FOldMouseY := FMouseY;
+  end;
+  FMouseX := X;
+  FMouseY := Y;
+end;
+
+procedure TDemo.OnMouseUp(AButton: TMouseButton; X: Integer; Y: Integer);
+begin
+  if AButton = mbLeft then
+    FLeftButtonPressed := False;
+  if AButton = mbRight then
+    FRightButtonPressed := False;
+end;
+
+procedure TDemo.OnKeyDown(AKey: Word);
+begin
+  if AKey = 81 then // Q
+    FIsDrawLogo := not FIsDrawLogo;
+
+  if AKey = 32 then // Space
+    FIsRunLife := not FIsRunLife;
+
+  if AKey = 83 then // S
+    FCurrentLifeShader := FSimpleLifeShader;
+
+  if AKey = 68 then // D
+    FCurrentLifeShader := FLifeDeathShader;
+
+  if AKey = 69 then // E
+  begin
+    FIsUseAdditionalShaders := not FIsUseAdditionalShaders;
+    if FIsUseAdditionalShaders then
+      FCurrentFrame := 0;
+  end;
+
+  if AKey = 67 then // C
+    FIsNeedClear := True;
+
+  if AKey = 86 then // V
+    FDrawVLine := True;
+
+  if AKey = 72 then // H
+    FDrawHLine := True;
+
+  if AKey = 107 then // +
+    FIsDrawInfo := True;
+
+  if AKey = 109 then // -
+    FIsDrawInfo := False;
+end;
+
+procedure TDemo.OnKeyUp(AKey: Word);
+begin
+  // nothing to do
+end;
+{$ENDREGION}
+
+end.

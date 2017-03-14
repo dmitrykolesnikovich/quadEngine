@@ -1,0 +1,157 @@
+unit Collision;
+
+interface
+
+uses
+  Vec2f;
+
+type
+  P2DColPoint = ^T2DColPoint;
+  T2DColPoint = array[0..3] of TVec2f;
+
+  T2DLine = record
+    a, b: TVec2f;
+  end;
+
+  T2DRect = record
+    X, Y, W, H: Single;
+  end;
+
+  T2DCircle = record
+    C: TVec2f;
+    R: Single;
+  end;
+
+  TCollision = class
+    procedure InitColPoint(ColPoint: P2DColPoint);
+    function PointRect(X, Y: Single; const ARect: T2DRect ): Boolean;
+    function Line(const A, B: T2DLine; ColPoint: PVec2f): Boolean; overload;
+    function Line(const A, B: T2DLine): Boolean; overload;
+    function LineRect(const ALine: T2DLine; const ARect : T2DRect; ColPoint: P2DColPoint): Boolean; overload;
+    function LineRect(const ALine: T2DLine; const ARect : T2DRect): Boolean; overload;
+    function LineCircle(const ALine: T2DLine; const ACircle: T2DCircle): Boolean;
+  end;
+
+var
+  Coll: TCollision;
+
+implementation
+
+function TCollision.PointRect(X, Y: Single; const ARect: T2DRect): Boolean;
+begin
+  Result := (X >= ARect.X) and (X < ARect.X + ARect.W) and (Y >= ARect.Y) and (Y < ARect.Y + ARect.H);
+end;
+
+function TCollision.Line(const A, B: T2DLine; ColPoint: PVec2f): Boolean;
+  var
+    s, t, tmp: Single;
+    s1, s2: TVec2f;
+    i: integer;
+begin
+  Result := False;
+  s1 := A.b - A.a;
+  s2 := B.b - B.a;
+  s := (s2.X * (-s1.Y) - (-s1.X) * s2.Y);
+  if s <> 0 Then
+    tmp := 1 / (s2.X * (-s1.Y) - (-s1.X) * s2.Y)
+  else
+    exit;
+  s := ((A.a.X - B.a.X) * (-s1.Y) - (-s1.X) * (A.a.Y - B.a.Y)) * tmp;
+  t := (s2.X * (A.a.Y - B.a.Y) - (A.a.X - B.a.X) * s2.Y) * tmp;
+  Result := (s >= 0) and (s <= 1) and (t >= 0) and (t <= 1);
+
+  if Assigned(ColPoint) then
+    ColPoint^ := TVec2f.Create(A.a.X + t * s1.X, A.a.Y + t * s1.Y);
+end;
+
+procedure TCollision.InitColPoint(ColPoint: P2DColPoint);
+var
+  i: Integer;
+begin
+  for i := 0 to 3 do
+    ColPoint[i] := TVec2f.Create(0, 0);
+end;
+
+function TCollision.Line(const A, B: T2DLine): Boolean;
+begin
+  Result := Line(A, B, nil);
+end;
+
+function TCollision.LineCircle(const ALine: T2DLine; const ACircle: T2DCircle): Boolean;
+var
+  p1, p2, d: TVec2f;
+  a, b, c: Single;
+begin
+  p1 := ALine.a - ACircle.C;
+  p2 := ALine.b - ACircle.C;
+
+  d := TVec2f.Create(p2.X - p1.X, p2.Y - p1.Y);
+
+  a := sqr(d.x) + sqr(d.y);
+  b := (p1.X * d.x + p1.Y * d.y) * 2;
+  c := sqr(p1.X) + sqr(p1.Y) - sqr(ACircle.R);
+
+  if -b < 0 Then
+    Result := c < 0
+  else
+    if -b < a * 2 Then
+      Result := a * c * 4 - sqr(b) < 0
+    else
+      Result := a + b + c < 0;
+end;
+
+function TCollision.LineRect(const ALine: T2DLine; const ARect : T2DRect): Boolean;
+var
+  line0: T2DLine;
+begin
+  Result := LineRect(ALine, ARect, nil);
+end;
+
+function TCollision.LineRect(const ALine: T2DLine; const ARect : T2DRect; ColPoint: P2DColPoint): Boolean;
+var
+  line0: T2DLine;
+begin
+  if not Assigned(ColPoint) Then
+  begin
+    Result := PointRect(ALine.a.X, ALine.a.Y, ARect) or PointRect(ALine.b.X, ALine.b.Y, ARect);
+    if not Result Then
+    begin
+      line0.a := TVec2f.Create(ARect.X, ARect.Y);
+      line0.b := TVec2f.Create(ARect.X + ARect.W, ARect.Y + ARect.H);
+      Result := Line(ALine, line0);
+      if not Result Then
+      begin
+        line0.a := TVec2f.Create(ARect.X, ARect.Y + ARect.H);
+        line0.b := TVec2f.Create(ARect.X + ARect.W, ARect.Y);
+        Result := Line(ALine, line0);
+      end;
+    end;
+  end
+  else
+  begin
+    line0.a := TVec2f.Create(ARect.X, ARect.Y);
+    line0.b := TVec2f.Create(ARect.X + ARect.W, ARect.Y);
+    Result := Line(ALine, line0, @ColPoint[0]);
+
+    line0.a := TVec2f.Create(ARect.X + ARect.W, ARect.Y);
+    line0.b := TVec2f.Create(ARect.X + ARect.W, ARect.Y + ARect.H);
+    Result := Line(ALine, line0, @ColPoint[1]);
+
+    line0.a := TVec2f.Create(ARect.X + ARect.W, ARect.Y + ARect.H);
+    line0.b := TVec2f.Create(ARect.X, ARect.Y + ARect.H);
+    Result := Line(ALine, line0, @ColPoint[2]);
+
+    line0.a := TVec2f.Create(ARect.X, ARect.Y);
+    line0.b := TVec2f.Create(ARect.X, ARect.Y + ARect.H);
+    Result := Line(ALine, line0, @ColPoint[3]);
+  end;
+end;
+
+initialization
+  Coll := TCollision.Create;
+
+finalization
+  if Assigned(Coll) then
+    Coll.Free;
+
+end.

@@ -1,0 +1,68 @@
+unit CustomGameMode;
+
+interface
+
+uses
+  QuadEngine, Classes, Controls;
+
+type
+  TCustomGameMode = class
+  protected
+    FQuad: IQuadRender;
+  public
+    constructor Create(AQuadRender: IQuadRender);
+    procedure Draw(dt: Double); virtual;
+    procedure OnKeyDown(Key: Word); virtual;
+    procedure OnKeyUp(Key: Word; Shift: TShiftState); virtual;
+    procedure OnMouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); virtual;
+    procedure OnMouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Integer); virtual;
+    procedure OnMouseMove(Shift: TShiftState; X, Y: Integer); virtual;
+    procedure OnMouseWheel(Shift: TShiftState; WheelDelta: Integer; var Handled: Boolean); virtual;
+    procedure Process(const dt: Double); virtual;
+  end;
+
+implementation
+
+{ TCustomGameMode }
+
+constructor TCustomGameMode.Create(AQuadRender: IQuadRender);
+begin
+  FQuad := AQuadRender;
+end;
+
+procedure TCustomGameMode.Draw(dt: Double);
+begin
+
+end;
+
+procedure TCustomGameMode.OnKeyDown(Key: Word);
+begin
+
+end;
+
+procedure TCustomGameMode.OnKeyUp(Key: Word; Shift: TShiftState);
+begin
+
+end;
+
+procedure TCustomGameMode.OnMouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+begin
+
+end;
+
+procedure TCustomGameMode.OnMouseMove(Shift: TShiftState; X, Y: Integer);
+begin
+
+end;
+
+procedure TCustomGameMode.OnMouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+begin
+
+end;
+
+procedure TCustomGameMode.Process(const dt: Double);
+begin
+
+end;
+
+end.

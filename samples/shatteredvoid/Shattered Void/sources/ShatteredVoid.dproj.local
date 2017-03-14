@@ -1,0 +1,31 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<BorlandProject>
+	<Transactions>
+    <Transaction>1899.12.30 00:00:00.000.pas,C:\Projects\Void Story\Credits.pas=C:\Projects\Void Story\Unit1.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.202,C:\Users\Илья\Desktop\Void Story\BaseSprite.pas=</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.pas,C:\Projects\Void Story\SpriteManager.pas=C:\Projects\Void Story\Unit1.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.pas,C:\Projects\Void Story\Mainmenu.pas=C:\Projects\Void Story\Unit1.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.pas,C:\Projects\Void Story\BaseSprite.pas=C:\Projects\Void Story\Unit1.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.pas,C:\Projects\Void Story\Resources.pas=C:\Projects\Void Story\Unit1.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.939,C:\Users\Илья\Desktop\Void Story\SpriteManager.pas=</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.pas,C:\Projects\Void Story\Profile.pas=C:\Projects\Void Story\Unit1.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.dproj,C:\Projects\Void Story\VoidStory.dproj=C:\Users\Илья\Documents\RAD Studio\Projects\Project1.dproj</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.pas,C:\Projects\Void Story\gmMainMenu.pas=C:\Projects\Void Story\Unit1.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.dfm,C:\Projects\Void Story\MainForm.dfm=C:\Users\Илья\Documents\RAD Studio\Projects\Unit1.dfm</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.pas,C:\Projects\Void Story\Intro.pas=C:\Projects\Void Story\Unit1.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.pas,C:\Projects\Void Story\BaseGameMode.pas=C:\Projects\Void Story\Unit1.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.964,=C:\Users\Илья\Desktop\Void Story\Unit1.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.693,=C:\Users\Илья\Desktop\Void Story\Unit1.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.483,C:\Users\Илья\Desktop\Void Story\Unit1.pas=C:\Users\Илья\Desktop\Void Story\Enemies.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.858,C:\Users\Илья\Desktop\Void Story\Unit1.pas=C:\Users\Илья\Desktop\Void Story\fxExplosion.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.758,=C:\Users\Илья\Desktop\Void Story\Unit1.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.338,C:\Users\Илья\Desktop\Void Story\Unit1.pas=C:\Users\Илья\Desktop\Void Story\Player.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.978,=C:\Users\Илья\Desktop\Void Story\Unit1.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.684,C:\Users\Илья\Desktop\Void Story\VoidStory.dproj=C:\Users\Илья\Desktop\Void Story\ShatteredVoid.dproj</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.147,C:\Users\Илья\Desktop\Void Story\Intro.pas=</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.pas,C:\Projects\Void Story\MainForm.pas=C:\Users\Илья\Documents\RAD Studio\Projects\Unit1.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.209,C:\Users\Илья\Desktop\Void Story\Unit1.pas=C:\Users\Илья\Desktop\Void Story\Bullets.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.pas,C:\Projects\Void Story\defs.pas=C:\Projects\Void Story\Unit1.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.pas,C:\Projects\Void Story\Game.pas=C:\Projects\Void Story\Unit1.pas</Transaction>
+  </Transactions>
+</BorlandProject>

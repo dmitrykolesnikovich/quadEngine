@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<BorlandProject>
+	<Transactions>
+    <Transaction>2012.07.30 22:48:32.740.pas,F:\_83\sources\Unit1.pas=F:\_83\sources\BattleGameMode.pas</Transaction>
+    <Transaction>2012.07.30 22:52:15.819.pas,F:\_83\sources\Unit1.pas=F:\_83\sources\Map.pas</Transaction>
+    <Transaction>2012.07.31 20:50:16.191.pas,F:\_83\sources\Unit1.pas=F:\_83\sources\Font.pas</Transaction>
+    <Transaction>2012.08.01 20:11:19.525.pas,F:\_83\sources\Unit1.pas=F:\_83\sources\CustomUnit.pas</Transaction>
+    <Transaction>2012.08.02 21:05:59.671.pas,F:\_83\sources\Unit1.pas=F:\_83\sources\Collision.pas</Transaction>
+    <Transaction>2012.08.06 00:57:22.065.pas,F:\_83\sources\Unit1.pas=F:\_83\sources\Cursor.pas</Transaction>
+    <Transaction>2012.08.07 21:48:14.537.pas,F:\_83\sources\Unit1.pas=F:\_83\sources\Effects.pas</Transaction>
+    <Transaction>2012.08.08 07:25:04.555.pas,E:\Coding\_83\sources\Unit1.pas=E:\Coding\_83\sources\AI.pas</Transaction>
+    <Transaction>2012.08.11 13:13:45.961.pas,F:\_83\sources\Unit1.pas=F:\_83\sources\MainMenuMode.pas</Transaction>
+    <Transaction>2012.08.11 17:41:18.608.pas,F:\_83\sources\Unit1.pas=F:\_83\sources\UnitsConfig.pas</Transaction>
+  </Transactions>
+</BorlandProject>

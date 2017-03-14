@@ -1,0 +1,14 @@
+program Shadow;
+
+uses
+  Forms,
+  Main in 'Main.pas' {GameWin};
+
+{$R *.res}
+
+begin
+  Application.Initialize;
+  Application.MainFormOnTaskbar := True;
+  Application.CreateForm(TGameWin, GameWin);
+  Application.Run;
+end.

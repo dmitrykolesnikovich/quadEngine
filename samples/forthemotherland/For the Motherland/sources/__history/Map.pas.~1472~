@@ -1,0 +1,921 @@
+unit Map;
+
+interface
+
+uses
+  QuadEngine, Classes, Effects, SysUtils, Windows, Graphics, Dialogs,
+  CustomUnit, UnitsConfig,
+  Vec2f, Math, Collision, Resources, Direct3D9;
+
+const
+  SKY_COUNT = 49;
+
+type
+  TConfig = record
+    WaterAngle: Word;
+    WaterSpeed: Byte;
+    SvetX, SvetY: Word;
+  end;
+
+  TSky = record
+    Position: TVec2f;
+    SkyType: Integer;
+    Angle: Integer;
+  end;
+
+  PMapItem = ^TMapItem;
+
+  TMapItem = record
+    ItemType: Integer;
+    Frame: Integer;
+    Summa: Single;
+    Distance: Single;
+    Position: TVec2f;
+    // X, Y: Integer;
+    Decor: Integer;
+    Units: TCustomUnit;
+    ToItem: PMapItem;
+    Visible: array [0 .. 1] of Boolean;
+  end;
+
+  TMap = class
+  private const
+    PATH = 'Map\';
+    FW = 34;
+    FH = 25;
+  private
+    FQuad: IQuadRender;
+    FList: array [0 .. FW - 1, 0 .. FH - 1] of TMapItem;
+    FTempList: TList;
+    FFocus: PMapItem;
+    FUnitList: TList;
+    FListGoPoints: TList;
+    FMouse: TVec2f;
+    FSky: array[0..SKY_COUNT] of TSky;
+    function GetListItem(X, Y: Integer): PMapItem;
+    function GetItemMin: PMapItem;
+    procedure PointConstruct(AItem: PMapItem; const AUnit: TCustomUnit);
+    function GetW: Integer;
+    function GetH: Integer;
+    function GetListItemPosition(X, Y: Integer): TVec2f;
+  public
+    constructor Create(AQuad: IQuadRender; FileName: String);
+    destructor Destroy; override;
+    procedure Process(delta: Double);
+    procedure Draw;
+    procedure DrawGround(AType: Integer; AItem: PMapItem; AColor: Cardinal = $FFFFFFFF);
+    procedure Clear;
+    procedure Refresh;
+    procedure PathConstruct(X, Y: Integer);
+    function MeanValue(Item1, Item2: PMapItem; const AConfig: PUnitConfig): Single;
+    procedure SetMouse(X, Y: Integer);
+    Procedure RefreshVisible;
+    procedure LoadUnits(AFile: TFileStream);
+    procedure LoadGround(AFile: TFileStream);
+    procedure LoadDelay(AFile: TFileStream);
+    procedure LoadConfig(AFile: TFileStream);
+    procedure LoadDecor(AFile: TFileStream);
+    function InitListGoPoints(AItem: PMapItem): Boolean;
+    procedure SetListGoPoints(AList: TList);
+
+    procedure UnitsToList(var AList: TList);
+    function VisibleMap(AUnit, AItem: PMapItem; MapType: Integer; var CollMap: PMapItem; ItemOn: Boolean = False): Boolean; overload;
+    function VisibleMap(AUnit, AItem: PMapItem; MapType: Integer; ItemOn: Boolean = False): Boolean; overload;
+    function GetMap(AUnit: TCustomUnit): PMapItem;
+    procedure UnitAtack(AUnit, DUnit: PMapItem);
+    function GetMapPos(AItem: PMapItem): TVec2f;
+    function GetCollPoint(AItem, DItem: PMapItem): TVec2f;
+    function GetMouseItem: PMapItem;
+    Function GetCountUnits(APlayer: Integer): Integer;
+
+    property Focus: PMapItem read FFocus write FFocus;
+    property List[X, Y: Integer]: PMapItem read GetListItem;
+    property ListPos[X, Y: Integer]: TVec2f read GetListItemPosition;
+    property W: Integer read GetW;
+    property H: Integer read GetH;
+    property ListGoPoints: TList read FListGoPoints;
+  end;
+
+implementation
+
+procedure TMap.LoadConfig(AFile: TFileStream);
+var
+  TotalSize: Integer;
+  Size: Byte;
+  Name: AnsiString;
+  conf: TConfig;
+begin
+  AFile.Read(Size, SizeOf(Size));
+  SetLength(Name, Size);
+  AFile.Read(Name[1], Size);
+  //MapName.Text := Name;
+  AFile.Read(conf, SizeOf(conf));
+  Shaders.Water_LightPos.x := conf.SvetX/1024;
+  Shaders.Water_LightPos.Y := conf.SvetY/768;
+  Shaders.Water_LightPos.z := 1.0;
+  Shaders.Water_Vector.x := cos((conf.WaterAngle-90)/180*Pi)*conf.WaterSpeed/100;
+  Shaders.Water_Vector.y := sin((conf.WaterAngle-90)/180*Pi)*conf.WaterSpeed/100;
+end;
+
+procedure TMap.LoadDecor(AFile: TFileStream);
+type
+  TDelay = record
+    X, Y, T: Byte;
+  end;
+var
+  TotalSize, Size: Integer;
+  i, Count: Integer;
+  Decor: array of TDelay;
+begin
+  AFile.Read(Count, SizeOf(Count));
+  SetLength(Decor, Count);
+  Size := Count * SizeOf(TDelay);
+  AFile.ReadBuffer(Decor[0], Size);
+  for i := 0 to Count - 1 do
+    List[Decor[i].X, Decor[i].Y].Decor := Decor[i].T;
+end;
+
+function TMap.MeanValue(Item1, Item2: PMapItem; const AConfig: PUnitConfig): Single;
+begin
+  Result := (AConfig.Map[Item1.ItemType] + AConfig.Map[Item2.ItemType]) / 2;
+end;
+
+procedure TMap.Clear;
+var
+  X, Y: Integer;
+begin
+  FTempList.Clear;
+  for Y := 0 to H - 1 do
+    for X := 0 to W - 1 do
+    begin
+      FList[X, Y].Summa := -1;
+      FList[X, Y].Distance := 0;
+      FList[X, Y].ToItem := nil;
+    end;
+end;
+
+procedure TMap.Refresh;
+var
+  X, Y: Integer;
+begin
+  for Y := 1 to H - 2 do
+    for X := 1 to W - 2 do
+      if Assigned(FList[X, Y].Units) then
+      begin
+        FList[X, Y].Units.Went := False;
+        FList[X, Y].Units.Atack := False;
+      end;
+end;
+
+function TMap.VisibleMap(AUnit, AItem: PMapItem; MapType: Integer; ItemOn: Boolean): Boolean;
+var
+  sPos, fPos: TVec2f;
+  X, Y: Integer;
+  Line: T2DLine;
+  Circle: T2DCircle;
+begin
+  Result := False;
+  sPos := TVec2f.Create(Min(AUnit.Position.X, AItem.Position.X),
+    Min(AUnit.Position.Y, AItem.Position.Y));
+  fPos := TVec2f.Create(Max(AUnit.Position.X, AItem.Position.X),
+    Max(AUnit.Position.Y, AItem.Position.Y));
+
+  Line.a := TVec2f.Create(AUnit.Position.X * 32, AUnit.Position.Y * 32);
+  Line.b := TVec2f.Create(AItem.Position.X * 32, AItem.Position.Y * 32);
+  Circle.R := 16;
+
+  for Y := Round(sPos.Y) to Round(fPos.Y) do
+    for X := Round(sPos.X) to Round(fPos.X) do
+    begin
+      Circle.C := TVec2f.Create(X * 32, Y * 32);
+
+      if (List[X, Y].ItemType = MapType) and Coll.LineCircle(Line, Circle) and
+        (AUnit <> List[X, Y]) and ((List[X, Y] <> AItem) or ItemOn) then
+      begin
+        Result := True;
+        Exit;
+      end;
+    end;
+end;
+
+function TMap.VisibleMap(AUnit, AItem: PMapItem; MapType: Integer; var CollMap: PMapItem; ItemOn: Boolean = False): Boolean;
+var
+  sPos, fPos: TVec2f;
+  X, Y: Integer;
+  Line: T2DLine;
+  Circle: T2DCircle;
+  Dis, D: Single;
+begin
+  Result := False;
+  CollMap := AItem;
+  Dis := ListPos[X, Y].Distance(GetMapPos(AUnit));
+
+  sPos := TVec2f.Create(Min(AUnit.Position.X, AItem.Position.X),
+    Min(AUnit.Position.Y, AItem.Position.Y));
+  fPos := TVec2f.Create(Max(AUnit.Position.X, AItem.Position.X),
+    Max(AUnit.Position.Y, AItem.Position.Y));
+
+  Line.a := TVec2f.Create(AUnit.Position.X * 32, AUnit.Position.Y * 32);
+  Line.b := TVec2f.Create(AItem.Position.X * 32, AItem.Position.Y * 32);
+  Circle.R := 16;
+
+  for Y := Round(sPos.Y) to Round(fPos.Y) do
+    for X := Round(sPos.X) to Round(fPos.X) do
+    begin
+      Circle.C := TVec2f.Create(X * 32, Y * 32);
+
+      if (List[X, Y].ItemType = MapType) and Coll.LineCircle(Line, Circle) and
+        (AUnit <> List[X, Y]) and ((List[X, Y] <> AItem) or ItemOn) then
+      begin
+        Result := True;
+        D :=  ListPos[X, Y].Distance(GetMapPos(AUnit));
+        if Dis > D then
+        begin
+          Dis := D;
+          CollMap := List[X, Y];
+        end;
+      end;
+    end;
+end;
+
+procedure TMap.RefreshVisible;
+var
+  X, Y, i, U, Dis, count: Integer;
+  Point1, Point2: TVec2f;
+  Item: PMapItem;
+begin
+  FUnitList.Clear;
+  for Y := 1 to H - 2 do
+    for X := 1 to W - 2 do
+    begin
+      List[X, Y].Visible[0] := False;
+      List[X, Y].Visible[1] := False;
+      if Assigned(List[X, Y].Units) then
+        FUnitList.Add(List[X, Y]);
+    end;
+
+
+count := FUnitList.Count;
+if FUnitList.Count > 0 then
+  for U := 0 to FUnitList.Count - 1 do
+  begin
+    if U > FUnitList.Count - 1 then
+      sleep(10);
+    Item := PMapItem(FUnitList.Items[U]);
+
+    Point1 := TVec2f.Create(Item^.Position.X * 32 - 16, Item^.Position.Y * 32 - 16);
+    if Assigned(Item.Units) and (Item.Units.HP > 0) then
+      begin
+      for Y := 1 to H - 2 do
+        for X := 1 to W - 2 do
+          if not List[X, Y].Visible[Item.Units.Player] then
+          begin
+            Point2 := TVec2f.Create(X * 32 - 16, Y * 32 - 16);
+            Dis := Item.Units.Config.Visible;
+            if (Item^.ItemType = 4) or VisibleMap(Item, List[X, Y], MAP_FOREST, True) then
+              Dis := Item.Units.Config.VisibleForest;
+            if Item.ItemType = MAP_HOME then
+              Dis := Round(Dis * 2);
+
+            if (Dis >= Point2.Distance(Point1)) and not VisibleMap(Item, List[X, Y], MAP_HOME) then
+              List[X, Y].Visible[Item.Units.Player] := True;
+          end;
+    end
+    else
+      Item.Visible[0] := True;
+  end;
+end;
+
+procedure TMap.SetListGoPoints(AList: TList);
+begin
+  FListGoPoints := AList;
+end;
+
+procedure TMap.SetMouse(X, Y: Integer);
+begin
+  FMouse := TVec2f.Create(X, Y);
+end;
+
+function TMap.GetMouseItem: PMapItem;
+begin
+  Result := List[(Round(FMouse.X)+32) div 32, (Round(FMouse.Y)+32) div 32];
+end;
+
+procedure TMap.UnitAtack(AUnit, DUnit: PMapItem);
+var
+  Dmg, Rand: Integer;
+  RUnit: PMapItem;
+  X, Y: Integer;
+begin
+  if not Assigned(AUnit) or not Assigned(AUnit.Units) or not Assigned(DUnit)
+    or not Assigned(DUnit.Units) then
+    Exit;
+
+  Rand := Random(100);
+  if AUnit.Units.Config.UnitType = UNIT_ARTILLERY then
+  begin
+    if Rand < 60 then
+    begin
+      Dmg := Round(AUnit.Units.GetDmg / (1 + DUnit.Units.Config.Armor / 100));
+      DUnit.Units.HP := DUnit.Units.HP - Dmg;
+      EffectsEngine.Add(TEffectBoom1.Create(TVec2f.Create(DUnit.Position.X * 32 - 16, DUnit.Position.Y * 32 - 20)));
+      EffectsEngine.Add(TEffectNumDmg.Create(TVec2f.Create(DUnit.Position.X * 32 - 16, DUnit.Position.Y * 32 - 26), IntToStr(Dmg)));
+    end
+    else
+    begin
+      case random(4) of
+        0: RUnit := List[Round(DUnit.Position.X-1), Round(DUnit.Position.Y)];
+        1: RUnit := List[Round(DUnit.Position.X+1), Round(DUnit.Position.Y)];
+        2: RUnit := List[Round(DUnit.Position.X), Round(DUnit.Position.Y-1)];
+        3: RUnit := List[Round(DUnit.Position.X), Round(DUnit.Position.Y+1)];
+      end;
+      EffectsEngine.Add(TEffectBoom1.Create(TVec2f.Create(RUnit.Position.X * 32 - 16, RUnit.Position.Y * 32 - 20)));
+      if Assigned(RUnit.Units) then
+      begin
+        Dmg := Round(RUnit.Units.GetDmg / (1 + RUnit.Units.Config.Armor / 100));
+        RUnit.Units.HP := RUnit.Units.HP - Dmg;
+        EffectsEngine.Add(TEffectNumDmg.Create(TVec2f.Create(RUnit.Position.X * 32 - 16, RUnit.Position.Y * 32 - 26), IntToStr(Dmg)));
+      end;
+
+    end;
+  end
+  else if AUnit.Units.Config.UnitType = UNIT_REACT_ART then
+  begin
+    for X := -1 to 1 do
+      for Y := -1 to 1 do
+      begin
+        RUnit := List[Round(DUnit.Position.X+X), Round(DUnit.Position.Y+Y)];
+        if Rand < 60 then
+        begin
+          EffectsEngine.Add(TEffectBoom1.Create(TVec2f.Create(RUnit.Position.X * 32 - 16, RUnit.Position.Y * 32 - 20)));
+          if Assigned(RUnit.Units) then
+          begin
+            Dmg := Round(RUnit.Units.GetDmg / (1 + RUnit.Units.Config.Armor / 100));
+            RUnit.Units.HP := RUnit.Units.HP - Dmg;
+            EffectsEngine.Add(TEffectNumDmg.Create(TVec2f.Create(RUnit.Position.X * 32 - 16, RUnit.Position.Y * 32 - 26), IntToStr(Dmg)));
+          end;
+        end
+        else
+        begin
+          case random(4) of
+            0: RUnit := List[Round(RUnit.Position.X-1), Round(RUnit.Position.Y)];
+            1: RUnit := List[Round(RUnit.Position.X+1), Round(RUnit.Position.Y)];
+            2: RUnit := List[Round(RUnit.Position.X), Round(RUnit.Position.Y-1)];
+            3: RUnit := List[Round(RUnit.Position.X), Round(RUnit.Position.Y+1)];
+          end;
+          EffectsEngine.Add(TEffectBoom1.Create(TVec2f.Create(RUnit.Position.X * 32 - 16, RUnit.Position.Y * 32 - 20)));
+          if Assigned(RUnit.Units) then
+          begin
+            Dmg := Round(RUnit.Units.GetDmg / (1 + RUnit.Units.Config.Armor / 100));
+            RUnit.Units.HP := RUnit.Units.HP - Dmg;
+            EffectsEngine.Add(TEffectNumDmg.Create(TVec2f.Create(RUnit.Position.X * 32 - 16, RUnit.Position.Y * 32 - 26), IntToStr(Dmg)));
+          end;
+
+        end;
+      end;
+  end
+  else
+  begin
+    Dmg := Round(AUnit.Units.GetDmg / (1 + DUnit.Units.Config.Armor / 100));
+    if (Rand < 10) then
+      EffectsEngine.Add(TEffectNumDmg.Create
+          (TVec2f.Create(DUnit.Position.X * 32 - 16,
+            DUnit.Position.Y * 32 - 26), 'œ–ŒÃ¿’'))
+    else if (Rand >= 90) and (DUnit.Units.Config.UnitType <> UNIT_SOLDIER) then
+      EffectsEngine.Add(TEffectNumDmg.Create
+          (TVec2f.Create(DUnit.Position.X * 32 - 16,
+            DUnit.Position.Y * 32 - 26), '–» Œÿ≈“'))
+    else
+    begin
+      DUnit.Units.HP := DUnit.Units.HP - Dmg;
+      if AUnit.Units.Config.UnitType <> UNIT_SOLDIER then
+        EffectsEngine.Add(TEffectBoom.Create(TVec2f.Create(DUnit.Position.X * 32 - 16, DUnit.Position.Y * 32 - 20)));
+      EffectsEngine.Add(TEffectNumDmg.Create(TVec2f.Create(DUnit.Position.X * 32 - 16, DUnit.Position.Y * 32 - 26), IntToStr(Dmg)));
+    end;
+  end;
+end;
+
+procedure TMap.UnitsToList(var AList: TList);
+var
+  X, Y: Integer;
+begin
+  for Y := 1 to H - 2 do
+    for X := 1 to W - 2 do
+    begin
+      if Assigned(List[X, Y].Units) and (List[X, Y].Units.HP > 0) then
+        AList.Add(List[X, Y].Units);
+    end;
+end;
+
+constructor TMap.Create(AQuad: IQuadRender; FileName: String);
+var
+  X, Y: Integer;
+  AFile: TFileStream;
+  Teg: AnsiString;
+  Seek, Position: Integer;
+begin
+  for X := 0 to SKY_COUNT do
+  begin
+    FSky[X].Position := TVec2f.Create(Random(1024+512)-125, Random(768+512)-256);
+    FSky[X].SkyType := Random(4);
+    FSky[X].Angle := Random(360);
+  end;
+
+  FQuad := AQuad;
+  if not FileExists(PATH + FileName) then
+    ShowMessage('‘‡ÈÎ Í‡Ú˚ ÌÂ Ì‡È‰ÂÌ!');
+
+  FTempList := TList.Create;
+  FUnitList := TList.Create;
+  for Y := 0 to H - 1 do
+    for X := 0 to W - 1 do
+    begin
+      FList[X, Y].Position := TVec2f.Create(X, Y);
+      FList[X, Y].Summa := -1;
+      FList[X, Y].Distance := 0;
+      FList[X, Y].Units := nil;
+      FList[X, Y].Decor := -1;
+      FList[X, Y].Visible[0] := False;
+      FList[X, Y].Visible[1] := False;
+      FList[X, Y].ItemType := MAP_GROUND;
+    end;
+
+  AFile := TFileStream.Create(PATH + FileName, fmOpenRead);
+  try
+    AFile.Seek(0, soBeginning);
+    SetLength(Teg, 3);
+    AFile.Read(Teg[1], 3);
+    if AnsiCompareText(Teg, 'MAP') = 0 then
+    begin
+
+      while AFile.Position < AFile.Size do
+      begin
+        SetLength(Teg, 4);
+        AFile.Read(Teg[1], 4);
+        AFile.Read(Seek, SizeOf(Seek));
+      //  Position := AFile.Position;
+        if AnsiCompareText(Teg, 'GRND') = 0 then
+          LoadGround(AFile)
+        else if AnsiCompareText(Teg, 'UNIT') = 0 then
+          LoadUnits(AFile)
+        else if AnsiCompareText(Teg, 'DELY') = 0 then
+          LoadDelay(AFile)
+        else if AnsiCompareText(Teg, 'CONF') = 0 then
+          LoadConfig(AFile)
+        else if AnsiCompareText(Teg, 'DECR') = 0 then
+          LoadDecor(AFile)
+        else
+          AFile.Seek(Seek, soCurrent);
+      end;
+    end
+    else
+    begin
+      ShowMessage('¡ËÚ˚È Ù‡ÈÎ Í‡Ú˚');
+    end;
+  finally
+    AFile.Free;
+  end;
+  RefreshVisible;
+end;
+
+destructor TMap.Destroy;
+begin
+  FUnitList.Free;
+  FTempList.Free;
+  inherited;
+end;
+
+function TMap.GetCollPoint(AItem, DItem: PMapItem): TVec2f;
+var
+  Line, Line1: T2DLine;
+  Point: TVec2f;
+  Dis: Single;
+begin
+  Result := GetMapPos(DItem);
+  Line.a := Result;
+  Line.b := GetMapPos(AItem);
+  FQuad.DrawLine(Line.a.X, Line.a.Y, Line.a.X, Line.a.Y, $FFFF8800);
+  Dis := Line.a.Distance(Line.b);
+  FQuad.SetBlendMode(qbmNone);
+
+  Line1.a := TVec2f.Create(Line.a.X - 16, Line.a.Y - 16);
+  Line1.b := TVec2f.Create(Line.a.X + 16, Line.a.Y - 16);
+  FQuad.DrawLine(Line1.a.X, Line1.a.Y, Line1.a.X, Line1.a.Y, $FFFF00FF);
+  if Coll.Line(Line, Line1, @Point) and (Point.Distance(Line.b) < Dis) then
+  begin
+    Result := GetMapPos(DItem);
+    Dis := Point.Distance(Line.b);
+  end;
+  Line1.a := TVec2f.Create(Line.a.X + 16, Line.a.Y - 16);
+  Line1.b := TVec2f.Create(Line.a.X + 16, Line.a.Y + 16);
+  if Coll.Line(Line, Line1, @Point) and (Point.Distance(Line.b) < Dis) then
+  begin
+    Result := GetMapPos(DItem);
+    Dis := Point.Distance(Line.b);
+  end;
+  Line1.a := TVec2f.Create(Line.a.X + 16, Line.a.Y + 16);
+  Line1.b := TVec2f.Create(Line.a.X - 16, Line.a.Y + 16);
+  if Coll.Line(Line, Line1, @Point) and (Point.Distance(Line.b) < Dis) then
+  begin
+    Result := GetMapPos(DItem);
+    Dis := Point.Distance(Line.b);
+  end;
+  Line1.a := TVec2f.Create(Line.a.X - 16, Line.a.Y - 16);
+  Line1.b := TVec2f.Create(Line.a.X - 16, Line.a.Y + 16);
+  if Coll.Line(Line, Line1, @Point) and (Point.Distance(Line.b) < Dis) then
+  begin
+    Result := GetMapPos(DItem);
+    Dis := Point.Distance(Line.b);
+  end;
+  FQuad.SetBlendMode(qbmSrcAlpha);
+end;
+
+function TMap.GetH: Integer;
+begin
+  Result := FH;
+end;
+
+function TMap.GetItemMin: PMapItem;
+var
+  i, index: Integer;
+  Dis: Single;
+  Item: PMapItem;
+begin
+  Dis := MaxInt;
+  if FTempList.Count > 0 then
+    for i := 0 to FTempList.Count - 1 do
+    begin
+      Item := PMapItem(FTempList.Items[i]);
+      if Dis > Item^.Summa then
+      begin
+        Dis := Item^.Summa;
+        index := i;
+      end;
+    end;
+
+  if Dis < MaxInt then
+  begin
+    Result := FTempList.Items[index];
+    FTempList.Delete(index);
+  end;
+  // ShowMessage(FloatToStr(dis));
+end;
+
+function TMap.GetListItem(X, Y: Integer): PMapItem;
+begin
+  Result := @FList[X, Y];
+end;
+
+function TMap.GetListItemPosition(X, Y: Integer): TVec2f;
+begin
+  Result := TVec2f.Create(X*32-16, Y*32-16);
+end;
+
+function TMap.GetMap(AUnit: TCustomUnit): PMapItem;
+begin
+  if Assigned(AUnit) then
+    Result := List[AUnit.MapX, AUnit.MapY];
+end;
+
+function TMap.GetMapPos(AItem: PMapItem): TVec2f;
+begin
+  Result := TVec2f.Create(AItem.Position.X*32-16, AItem.Position.Y*32-16);
+end;
+
+function TMap.GetW: Integer;
+begin
+  Result := FW;
+end;
+
+function TMap.InitListGoPoints(AItem: PMapItem): Boolean;
+var
+  Item: PMapItem;
+begin
+  Result := false;
+  if not Assigned(AItem) then
+    Exit;
+
+  while Assigned(AItem^.ToItem) do
+  begin
+    if AItem^.Distance <= Focus^.Units.Config.Distance then
+      FListGoPoints.Add(AItem);
+    AItem := AItem^.ToItem;
+  end;
+  Result := True;
+  if FListGoPoints.Count = 0 then
+    Result := False;
+end;
+
+procedure TMap.LoadGround(AFile: TFileStream);
+var
+  FMapGround: array [0 .. FW - 1, 0 .. FH - 1] of Byte;
+  MapSizeW, MapSizeH: Byte;
+  TotalSize: Integer;
+  X, Y: Integer;
+begin
+  AFile.Read(MapSizeW, SizeOf(MapSizeW));
+  AFile.Read(MapSizeH, SizeOf(MapSizeH));
+  TotalSize := MapSizeW * MapSizeH;
+  AFile.ReadBuffer(FMapGround[0], TotalSize);
+
+  FQuad.BeginRender;
+  FQuad.RenderToTexture(True, Textures.Water, 0);
+  FQuad.Rectangle(0, 0, 1024, 768, $FFFFFFFF);
+  for Y := 0 to MapSizeH - 1 do
+    for X := 0 to MapSizeW - 1 do
+    begin
+      FList[X, Y].ItemType := FMapGround[X, Y];
+      // if FMapGround[X, Y] = MAP_WADE then
+      // FQuad.Rectangle(0, 0, 1024, 768, $FFFFFFFF);
+
+      case FMapGround[X, Y] of
+        MAP_WATER: Textures.Ground.Draw(X * 32 - 32, Y * 32 - 32, $FF000000, 4);
+        MAP_WADE: Textures.Ground.Draw(X * 32 - 32, Y * 32 - 32, $FF969696, 4);
+        MAP_BRIDGE : Textures.Ground.Draw(x * 32 - 32, y * 32 - 32, $FF969696, 4);
+        // MAP_GROUND : Textures.Ground.Draw(x * 32 - 32, y * 32 - 32, $FFF0F0F0, 4);
+        // MAP_FOREST : Textures.Ground.Draw(x * 32 - 32, y * 32 - 32, $FF008000, 4);
+        // MAP_HOME   : Textures.Ground.Draw(x * 32 - 32, y * 32 - 32, $FFFF00FF, 4);
+      end;
+    end;
+  FQuad.RenderToTexture(False, Textures.Water, 0);
+  FQuad.EndRender;
+end;
+
+procedure TMap.LoadUnits(AFile: TFileStream);
+type
+  TUnit = record
+    X, Y, UnitType, Player: Byte;
+  end;
+var
+  Units: array of TUnit;
+  Count, Size: Integer;
+  i: Integer;
+begin
+  AFile.Read(Count, SizeOf(Count));
+  SetLength(Units, Count);
+  Size := Count * SizeOf(Units);
+  AFile.ReadBuffer(Units[0], Size);
+  for i := 0 to Count - 1 do
+  begin
+  {
+    case Units[i].UnitType of
+      0: FList[Units[i].X, Units[i].Y].Units := TCustomUnit(TUnitSolder.Create(FQuad, Units[i].Player));
+      1: FList[Units[i].X, Units[i].Y].Units := TCustomUnit(TUnitTankT26.Create(FQuad, Units[i].Player));
+      2: FList[Units[i].X, Units[i].Y].Units := TCustomUnit(TUnitTankH39.Create(FQuad, Units[i].Player));
+      3: FList[Units[i].X, Units[i].Y].Units := TCustomUnit(TUnitTankSU26.Create(FQuad, Units[i].Player));
+    end;   }
+    FList[Units[i].X, Units[i].Y].Units := TCustomUnit.Create(FQuad, Units[i].Player);
+    FList[Units[i].X, Units[i].Y].Units.Config := @UnitsConfigs[Units[i].UnitType];
+    FList[Units[i].X, Units[i].Y].Units.MapX := Units[i].X;
+    FList[Units[i].X, Units[i].Y].Units.MapY := Units[i].Y;
+    FList[Units[i].X, Units[i].Y].Units.sX := Units[i].X;
+    FList[Units[i].X, Units[i].Y].Units.sY := Units[i].Y;
+  end;
+end;
+  { /////////
+var
+  Count, i, j, Size: Integer;
+  Delay: TDelayList;
+  Units: array of TMyPoint;
+begin
+  Tree.Items.Clear;
+  AFile.Read(Count, SizeOf(Count));
+
+  for i := 0 to Count - 1 do
+  begin
+    AFile.Read(Delay, SizeOf(Delay));
+    NodeSelected := AddTree(Delay.X, Delay.Y, Delay.T+10);
+
+    SetLength(Units, Delay.Count);
+
+    Size := Delay.Count * SizeOf(TMyPoint);
+    AFile.ReadBuffer(Units[0], Size);
+    for j := 0 to Delay.Count - 1 do
+       AddUnitDelay(Units[j].X, Units[j].Y);
+  end;
+ ///////////   }
+procedure TMap.LoadDelay(AFile: TFileStream);
+type
+  TDelayLoad = record
+    X, Y, T, Count: Byte;
+  end;
+  TDelayPoint = record
+    X, Y: Byte;
+  end;
+var
+  Count, i, j, Size: Integer;
+  Delay: TDelayLoad;
+  Units: array of TDelayPoint;
+begin
+  AFile.Read(Count, SizeOf(Count));
+  for i := 0 to Count - 1 do
+  begin
+    AFile.Read(Delay, SizeOf(Delay));
+    SetLength(Units, Delay.Count);
+    Size := Delay.Count * SizeOf(TDelayPoint);
+    AFile.ReadBuffer(Units[0], Size);
+    for j := 0 to Delay.Count - 1 do
+      if Assigned(FList[Units[j].X, Units[j].Y].Units) then
+      begin
+        FList[Units[j].X, Units[j].Y].Units.SetDelay(Delay.X, Delay.Y);
+        FList[Units[j].X, Units[j].Y].Units.SetDelay(Delay.T);
+      end;
+  end;
+end;
+
+procedure TMap.PathConstruct(X, Y: Integer);
+begin
+  if not Assigned(FList[X, Y].Units) then
+    Exit;
+
+  FFocus := List[X, Y];
+
+  Clear;
+  if not FList[X, Y].Units.Went then
+  begin
+    FList[X, Y].Summa := 0;
+    PointConstruct(List[X, Y], FList[X, Y].Units);
+    while FTempList.Count > 0 do
+      PointConstruct(GetItemMin, FList[X, Y].Units);
+  end;
+end;
+
+procedure TMap.PointConstruct(AItem: PMapItem; const AUnit: TCustomUnit);
+var
+  X, Y: Integer;
+  Plus: Single;
+  Item: PMapItem;
+begin
+  if not Assigned(AItem) { or (AItem^.Summa >= AUnit.Config.Speed) } then
+    Exit;
+
+  for X := Max(1, Round(AItem^.Position.X) - 1) to Min(W - 2,
+    Round(AItem^.Position.X) + 1) do
+    for Y := Max(1, Round(AItem^.Position.Y) - 1) to Min(H - 2,
+      Round(AItem^.Position.Y) + 1) do
+      if not((X = 0) and (Y = 0)) then
+      begin
+        Item := List[X, Y];
+        if (Item^.Summa = -1){ and (not Assigned(Item^.Units) or not Item^.Visible[0])} then
+        begin
+          Plus := MeanValue(Item, AItem, AUnit.Config);
+          if Assigned(Item^.Units) and (Item^.Units.HP > 0) or (Item^.Decor > -1) then
+            Plus := 5000;
+          if (X = AItem^.Position.X) or (Y = AItem^.Position.Y) then
+          begin
+            Item^.Summa := AItem^.Summa + Plus + AItem^.Position.Distance(Item^.Position);
+            Item^.Distance := AItem^.Distance + Plus;
+          end
+          else
+          begin
+            Item^.Summa := AItem^.Summa + Plus * 1.4 + AItem^.Position.Distance
+              (Item^.Position);
+            Item^.Distance := AItem^.Distance + Plus * 1.4;
+          end;
+          // if AUnit.Distance >= Item^.Summa then
+          // begin
+          Item.ToItem := AItem;
+          FTempList.Add(Item);
+          // end else
+          // Item^.Summa := -1;
+        end;
+      end;
+end;
+
+procedure TMap.Process(delta: Double);
+var
+  i: Integer;
+begin
+  for i := 0 to SKY_COUNT do
+  begin
+    FSky[i].Position := FSky[i].Position + TVec2f.Create(-Shaders.Water_Vector.x*10, -Shaders.Water_Vector.y*10) * delta;
+    if FSky[i].Position.X > 1024+256 then
+      FSky[i].Position.X := FSky[i].Position.X - 1024-512
+    else
+      if FSky[i].Position.X < -256 then
+        FSky[i].Position.X := FSky[i].Position.X + 1024+512;
+
+    if FSky[i].Position.Y > 768+256 then
+      FSky[i].Position.Y := FSky[i].Position.Y - 768-512
+    else
+      if FSky[i].Position.Y < -256 then
+        FSky[i].Position.Y := FSky[i].Position.Y + 768+512;
+
+  end;
+end;
+
+procedure TMap.Draw;
+var
+  X, Y: Integer;
+  temp: TVec2f;
+begin
+  FQuad.SetBlendMode(qbmSrcAlpha);
+
+  FQuad.RenderToTexture(True, Textures.Water, 2);
+  FQuad.Rectangle(0, 0, 1024, 768, $FF79d1ff);
+  for X := 0 to SKY_COUNT do
+    Textures.Sky.DrawRot(FSky[X].Position.X, FSky[X].Position.Y, FSky[X].Angle, 1, $FFFFFFFF, FSky[X].SkyType);
+
+  FQuad.RenderToTexture(False, Textures.Water, 2);
+  FQuad.SetTextureAdressing(D3DTADDRESS_WRAP);
+  Shaders.Water.SetShaderState(True);
+  Textures.Water.DrawMap(0, 0, 1024, 768, 0, 0, 1, 1, $FFFFFFFF);
+  Shaders.Water.SetShaderState(False);
+  FQuad.SetTextureAdressing(D3DTADDRESS_CLAMP);
+
+ // FQuad.SetBlendMode(qbmNone);
+   FQuad.SetBlendMode(qbmSrcAlpha);
+
+  for Y := 1 to H - 2 do
+    for X := 1 to W - 2 do
+    begin
+      case List[X, Y].ItemType of
+        // MAP_WATER  : Textures.Ground.Draw(x * 32 - 32, y * 32 - 32, $FF0066CC, 4);
+        // MAP_WADE   : Textures.Ground.Draw(x * 32 - 32, y * 32 - 32, $FF3399FF, 4);
+      //  MAP_GROUND: Textures.Ground.Draw(X * 32 - 32, Y * 32 - 32, $FFF0F0F0, 4);
+        MAP_BRIDGE: Textures.Decor.Draw(X * 32 - 32, Y * 32 - 32, $FFFFFFFF, 0);
+        MAP_FOREST:// Textures.Ground.Draw(X * 32 - 32, Y * 32 - 32, $70008000, 0);
+         Textures.Decor.Draw(X * 32 - 32, Y * 32 - 32, $FFFFFFFF, 1);
+    //    DrawGround(0, List[X, Y], $70008000);
+        MAP_SAND: //Textures.Ground.Draw(X * 32 - 32, Y * 32 - 32, $FFFFFFFF, 12);
+        DrawGround(12, List[X, Y], $FFFFFFFF);
+         // Textures.Ground.Draw(X * 32 - 32, Y * 32 - 32, $FFFF00FF, 4);
+      end;
+  //    Fonts.Grid.TextOut(X * 32 - 32, Y * 32 - 32, 1, PAnsiChar(AnsiString(intToStr(Round(List[X, Y].Distance)))), $FF000000 );
+    end;
+
+
+   FQuad.SetBlendMode(qbmSrcAlpha);
+  for Y := 1 to H - 2 do
+    for X := 1 to W - 2 do
+    begin
+      case List[X, Y].ItemType of
+        MAP_HOME: Textures.House.Draw(X * 32 - 32, Y * 32 - 32, $FFFFFFFF);                // Textures.Ground.Draw(X * 32 - 32, Y * 32 - 32, $FFFF00FF, 4);
+      end;
+      if List[X, Y].Decor >= 0 then
+        Textures.Decor.Draw(X * 32 - 32, Y * 32 - 32, $FFFFFFFF, List[X, Y].Decor+4);
+  //    if Assigned(List[X, Y].ToItem) then
+  //    Fonts.Console.TextOut(X * 32 - 32, Y * 32 - 32, 1, PAnsiChar(AnsiString(FloatToStr(List[X, Y].Distance))),$FFFFFFFF );
+    end;
+
+  for X := 0 to SKY_COUNT do
+  begin
+    Textures.Sky.DrawRot(FSky[X].Position.X+50, FSky[X].Position.Y+50, FSky[X].Angle, 1, $33000000, FSky[X].SkyType);
+    Textures.Sky.DrawRot(FSky[X].Position.X+50, FSky[X].Position.Y+50, FSky[X].Angle, 1, $33000000, FSky[X].SkyType);
+  end;
+end;
+
+function TMap.GetCountUnits(APlayer: Integer): Integer;
+var
+  X, Y: Integer;
+begin
+  for Y := 1 to H - 2 do
+    for X := 1 to W - 2 do
+    begin
+end;
+
+procedure TMap.DrawGround(AType: Integer; AItem: PMapItem; AColor: Cardinal);
+var
+  iType: Integer;
+  V: TVec2f;
+  X, Y: Integer;
+  procedure DrawGrd(aA, aF: Integer);
+  begin
+    Textures.Ground.DrawRot(V.X+8, V.Y+8, aA, 1, AColor, aF + AType);
+  end;
+  function it(aX, aY: Integer): Boolean;
+  begin
+    Result := (List[X+aX, Y+aY].ItemType = AItem.ItemType);
+  end;
+begin
+  iType := AItem.ItemType;
+  X := Round(AItem.Position.X);
+  Y := Round(AItem.Position.Y);
+  V := TVec2f.Create(Round(AItem.Position.X) * 32 - 32, Round(AItem.Position.Y) * 32 - 32);
+
+  DrawGrd(0, 0);
+  // X0
+  // 00
+  {if not it(-1, -1) and not it(-1, 0) and not it(0, -1) then
+    DrawGrd(0, 1)
+  else if not it(-1, -1) and not it(-1, 0) and it(0, -1) then
+    DrawGrd(270, 2)
+  else if not it(-1, -1) and it(-1, 0) and not it(0, -1) then
+    DrawGrd(0, 2)
+  ;               }
+
+  // 0X
+  // 00
+  V.X := V.X + 16;
+  DrawGrd(0, 0);
+  // 00
+  // 0X
+  V.Y := V.Y + 16;
+  DrawGrd(0, 0);
+  // 00
+  // X0
+  V.X := V.X - 16;
+  DrawGrd(0, 0);
+end;
+
+end.

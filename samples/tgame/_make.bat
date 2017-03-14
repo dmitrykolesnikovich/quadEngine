@@ -1,0 +1,1 @@
+upx.exe -f -9 TGame.exe

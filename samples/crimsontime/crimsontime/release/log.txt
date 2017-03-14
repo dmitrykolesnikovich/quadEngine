@@ -1,0 +1,20 @@
+Quad Engine v0.5.1
+Monitors Count: 1
+Monitor #1: 16:9 1920x1080 (FullHD)
+QuadRender Initialization
+Resolution: 1024x768
+Driver: nvd3dum.dll
+Description: NVIDIA GeForce GTX 670
+Device: \\.\DISPLAY1
+Multisample: Off
+Fullscreen: Off
+Vsync: Off
+Vertex processing: Software
+Thread model: Multithreaded
+Max VB count: 60000
+Max Texture size: 8192x8192
+Max Texture stages: 8
+Max Anisotropy: 16
+Vertex shaders: 3.0
+Pixel shaders: 3.0
+Error: The method call is invalid.

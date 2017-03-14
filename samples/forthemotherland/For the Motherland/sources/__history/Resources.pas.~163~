@@ -1,0 +1,234 @@
+unit Resources;
+
+interface
+
+uses
+  Windows, QuadEngine, Direct3D9, Bass;
+
+type
+  TFonts = class
+  private
+    const PATH = 'data\fonts\';
+  public
+    Console: IQuadFont;
+    Grid: IQuadFont;
+    Verdana12b: IQuadFont;
+    F30: IQuadFont;
+    procedure LoadFonts(AQuadRender: IQuadRender);
+    destructor Destroy; override;
+  end;
+
+  TTextures = class
+  private
+    const PATH = 'data\gfx\';
+  public
+    Ground: IQuadTexture;
+    Arrow: IQuadTexture;
+    Units: IQuadTexture;
+    Cursor: IQuadTexture;
+    Grid: IQuadTexture;
+    Health: IQuadTexture;
+    Flame: IQuadTexture;
+    Focus: IQuadTexture;
+    Water: IQuadTexture;
+    Fog: IQuadTexture;
+    House: IQuadTexture;
+    MenuBG: IQuadTexture;
+    Decor: IQuadTexture;
+    Sky:  IQuadTexture;
+    Flash: IQuadTexture;
+    Flash1: IQuadTexture;
+    Botton: IQuadTexture;
+    Logo: IQuadTexture;
+    Defeat: IQuadTexture;
+    procedure LoadTextures(AQuadRender: IQuadRender);
+    destructor Destroy; override;
+  end;
+
+  TShaders = class
+  private
+    const PATH = 'data\shaders\';
+  public
+    Water: IQuadShader;
+    Water_LightPos: TD3DVector;
+    Water_Vector: TD3DVector;
+    Water_Time: Single;
+    procedure LoadShaders(AQuadRender: IQuadRender);
+    destructor Destroy; override;
+  end;
+
+  TAudio = class
+  public
+    const PATH = 'data\audio\';
+  public
+    Music: HSTREAM;
+    Boom: HSAMPLE;
+    procedure PlaySound(ASound: HSAMPLE);
+    procedure Initialize(AHandle: THandle);
+    procedure Finalize;
+    destructor Destroy; override;
+  end;
+
+var
+  Fonts: TFonts;
+  Textures: TTextures;
+  Shaders: TShaders;
+  Audio: TAudio;
+
+implementation
+
+{ TFont }
+procedure TFonts.LoadFonts(AQuadRender: IQuadRender);
+begin
+  Console := AQuadRender.CreateFont;
+  Console.LoadFromFile(PATH + 'console.png', PATH + 'console.qef');
+  Grid := AQuadRender.CreateFont;
+  Grid.LoadFromFile(PATH + 'grid.png', PATH + 'grid.qef');
+  Verdana12b := AQuadRender.CreateFont;
+  Verdana12b.LoadFromFile(PATH + 'Verdana12b.png', PATH + 'Verdana12b.qef');
+  F30 := AQuadRender.CreateFont;
+  F30.LoadFromFile(PATH + '30.png', PATH + '30.qef');
+end;
+
+destructor TFonts.destroy;
+begin
+  Console := nil;
+  Grid := nil;
+  Verdana12b := nil;
+  F30 := nil;
+  inherited;
+end;
+
+{ TTextures }
+
+destructor TTextures.destroy;
+begin
+  Ground := nil;
+  Arrow := nil;
+  Units := nil;
+  Cursor := nil;
+  Grid := nil;
+  Health := nil;
+  Flame := nil;
+  Focus := nil;
+  Water := nil;
+  Fog := nil;
+  House := nil;
+  MenuBG := nil;
+  Decor := nil;
+  Sky := nil;
+  Flash := nil;
+  Flash1 := nil;
+  Botton := nil;
+  Logo := nil;
+  Defeat := nil;
+  inherited;
+end;
+
+procedure TTextures.LoadTextures(AQuadRender: IQuadRender);
+begin
+  Ground := AQuadRender.CreateAndLoadTexture(0, PATH + 'ground.png', 16, 16);
+  Arrow := AQuadRender.CreateAndLoadTexture(0, PATH + 'arrow.png', 32, 32);
+  Units := AQuadRender.CreateAndLoadTexture(0, PATH + 'units.png', 64, 32);
+  Cursor := AQuadRender.CreateAndLoadTexture(0, PATH + 'cursor.png', 64, 64);
+  Grid  := AQuadRender.CreateAndLoadTexture(0, PATH + 'grid.png');
+  Health  := AQuadRender.CreateAndLoadTexture(0, PATH + 'health.png', 31, 4);
+  Flame  := AQuadRender.CreateAndLoadTexture(0, PATH + 'result.png', 32, 32);
+  Focus  := AQuadRender.CreateAndLoadTexture(0, PATH + 'focus.png', 32, 32);
+  House  := AQuadRender.CreateAndLoadTexture(0, PATH + 'house.png');
+  MenuBG := AQuadRender.CreateAndLoadTexture(0, PATH + 'bgmenu.jpg');
+  Decor := AQuadRender.CreateAndLoadTexture(0, PATH + 'decor.png', 32, 32);
+  Sky := AQuadRender.CreateAndLoadTexture(0, PATH + 'sky.png', 256, 256);
+  Flash := AQuadRender.CreateAndLoadTexture(0, PATH + 'flash.png', 32, 32);
+  Flash1 := AQuadRender.CreateAndLoadTexture(0, PATH + 'flash1.png', 64, 64);
+  Botton := AQuadRender.CreateAndLoadTexture(0, PATH + 'botton.png', 32, 32);
+  Logo := AQuadRender.CreateAndLoadTexture(0, PATH + 'logo.png');
+  Defeat := AQuadRender.CreateAndLoadTexture(0, PATH + 'defeat.jpg');
+
+  Water := AQuadRender.CreateTexture;
+  AQuadRender.CreateRenderTexture(32, 24, Water, 0);
+  //Water.LoadFromFile(0, PATH + 'height2.jpg');
+  Water.LoadFromFile(1, PATH + 'normal2.jpg');
+  AQuadRender.CreateRenderTexture(512, 512, Water, 2);
+  //Water.LoadFromFile(2, PATH + 'sky.jpg');
+  Water.LoadFromFile(3, PATH + 'floor.jpg');
+
+  AQuadRender.CreateRenderTexture(32, 24, Fog, 0);
+
+end;
+
+{ TShaders }
+
+destructor TShaders.Destroy;
+begin
+  Water := nil;
+  inherited;
+end;
+
+procedure TShaders.LoadShaders(AQuadRender: IQuadRender);
+var
+  Matrix: TD3DMatrix;
+begin
+  Water := AQuadRender.CreateShader;
+  Water.LoadComplexShader(PATH + 'vs_temp.bin', PATH + 'ps_temp.bin');
+  AQuadRender.GetD3DDevice.GetTransform(D3DTS_PROJECTION, Matrix);
+  AQuadRender.GetD3DDevice.SetVertexShaderConstantF(0, @Matrix, 4);
+  Water.BindVariableToVS(4, @Water_LightPos, 1);
+  Water.BindVariableToPS(0, @Water_Time, 1);
+  Water.BindVariableToPS(1, @Water_Vector, 1);
+
+  Water_LightPos.x := 0;
+  Water_LightPos.y := 0;
+  Water_LightPos.z := 1.0;
+
+  Water_Vector.x := 1;
+  Water_Vector.y := 1;
+
+end;
+
+{ TAudio }
+
+destructor TAudio.Destroy;
+begin
+
+  inherited;
+end;
+
+procedure TAudio.Finalize;
+begin
+  BASS_Stop;
+end;
+
+procedure TAudio.Initialize(AHandle: THandle);
+begin
+  if BASS_GetVersion <> DWORD(MAKELONG(2, 0)) then
+    Exit;
+
+  BASS_Init(1, 44100, 0, AHandle, nil);
+  BASS_Start;
+
+  Music := BASS_StreamCreateFile(False, PAnsiChar(AnsiString(PATH + 'menu.mp3')), 0, 0, 0);
+
+  Boom := BASS_SampleLoad(False, PAnsiChar(AnsiString(PATH + 'tank.mp3')), 0, 0, 32, 0);
+
+  BASS_StreamPlay(Music, True, BASS_SAMPLE_LOOP);
+end;
+
+procedure TAudio.PlaySound(ASound: HSAMPLE);
+begin
+  BASS_SamplePlay(ASound);
+end;
+
+initialization
+  Fonts := TFonts.Create;
+  Textures := TTextures.Create;
+  Shaders := TShaders.Create;
+  Audio := TAudio.Create;
+
+finalization
+  Fonts.Free;
+  Textures.Free;
+  Shaders.Free;
+  Audio.Free;
+
+end.

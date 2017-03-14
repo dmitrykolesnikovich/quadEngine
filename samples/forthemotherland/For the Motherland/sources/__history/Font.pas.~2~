@@ -1,0 +1,20 @@
+unit Font;
+
+interface
+
+uses
+  QuadEngine;
+
+type
+  TFonts = class
+  private
+    const PATH = 'data\fonts\';
+  public
+    Console: IQuadFont;
+    procedure LoadFonts(AQuadRender: IQuadRender);
+    destructor Destroy; override;
+  end;
+
+implementation
+
+end.

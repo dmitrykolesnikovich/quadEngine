@@ -1,0 +1,37 @@
+unit Font;
+
+interface
+
+uses
+  QuadEngine;
+
+type
+  TFonts = class
+  private
+    const PATH = 'Data\Fonts\';
+  public
+    Console: IQuadFont;
+    procedure LoadFonts(AQuadDevice: IQuadDevice);
+    destructor Destroy; override;
+  end;
+
+var
+  Fonts: TFonts;
+
+implementation
+
+{ TFont }
+destructor TFonts.destroy;
+begin
+  Console := nil;
+  inherited;
+end;
+
+procedure TFonts.LoadFonts(AQuadDevice: IQuadDevice);
+begin
+  AQuadDevice.CreateFont(Console);
+  Console.LoadFromFile(PATH + 'console.png', PATH + 'console.qef');
+  Console.SetIsSmartColoring(True);
+end;
+
+end.
